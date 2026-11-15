@@ -2,7 +2,7 @@
 
 Run headless:
   /Applications/Blender.app/Contents/MacOS/Blender -b --factory-startup \
-      -P pilot/blender/build_assets.py -- pilot/assets
+      -P core/blender/build_assets.py -- core/assets
 
 Outputs:
   character.glb  one blocky rig (8 bones), body parts, hair/accessory variants for
@@ -21,7 +21,7 @@ import bmesh
 import bpy
 from mathutils import Matrix, Vector
 
-OUT = sys.argv[sys.argv.index("--") + 1] if "--" in sys.argv else "pilot/assets"
+OUT = sys.argv[sys.argv.index("--") + 1] if "--" in sys.argv else "core/assets"
 OUT = os.path.abspath(OUT)
 os.makedirs(OUT, exist_ok=True)
 FPS = 30
@@ -90,8 +90,8 @@ class Builder:
             f.smooth = True
         return verts
 
-    def blob(self, radius, center, m, scale=(1, 1, 1)):
-        r = bmesh.ops.create_icosphere(self.bm, subdivisions=2, radius=radius)
+    def blob(self, radius, center, m, scale=(1, 1, 1), sub=2):
+        r = bmesh.ops.create_icosphere(self.bm, subdivisions=sub, radius=radius)
         verts = r["verts"]
         bmesh.ops.scale(self.bm, vec=Vector(scale), verts=verts)
         bmesh.ops.translate(self.bm, vec=Vector(center), verts=verts)
@@ -240,8 +240,21 @@ def build_character():
         b.box((1.2, 0.62, 0.12), (0, -0.92, 5.1), acc, 0.05, 2)    # brim
         b.box((0.3, 0.06, 0.2), (0, -0.74, 5.3), hair2, 0.02, 1)   # badge
 
+    def hair_zark(b):  # two antennae with glowing tips
+        for sx in (-1, 1):
+            b.box((0.16, 0.16, 0.95), (sx * 0.42, 0.05, 5.62), hair, 0.05, 2, rot_z=0, rot_x=0)
+            b.blob(0.2, (sx * 0.42, 0.05, 6.18), acc)
+
+    def hair_mayor(b):  # top hat
+        b.box((1.42, 1.42, 0.3), (0, 0.02, 4.95), hair2, 0.1, 3)
+        b.box((1.42, 0.45, 0.6), (0, 0.52, 4.72), hair2, 0.12, 3)
+        b.box((1.95, 1.95, 0.14), (0, 0, 5.3), hair, 0.05, 2)
+        b.box((1.25, 1.25, 1.15), (0, 0, 5.92), hair, 0.08, 3)
+        b.box((1.3, 1.3, 0.24), (0, 0, 5.5), acc, 0.04, 2)
+
     for name, fn in (("Hair_Zero", hair_zero), ("Hair_Zeebra", hair_zeebra),
-                     ("Hair_Luna", hair_luna), ("Hair_Zip", hair_zip)):
+                     ("Hair_Luna", hair_luna), ("Hair_Zip", hair_zip),
+                     ("Hair_Zark", hair_zark), ("Hair_Mayor", hair_mayor)):
         part(name, "Head", fn)
 
     bake_clips(rig)
@@ -317,7 +330,42 @@ def bake_clips(rig):
         return {"Hips": {"loc": (0, 0.02 * s, 0)}, "Torso": (-0.1, 0, 0),
                 "Head": (-0.5 + 0.02 * s, 0, 0), "ArmL": (0, 0, 0.1), "ArmR": (0, 0, -0.1)}
 
-    clips = [("Idle", idle, 60), ("Walk", walk, 30), ("Run", run, 20), ("Talk", talk, 60),
+    def sit(u):
+        s = S(PI2 * u)
+        return {"Hips": {"loc": (0, -1.5, 0)}, "Torso": (0.02 * s, 0, 0), "Head": (0.03 * s, 0, 0),
+                "LegL": (-1.5, 0, 0.04), "LegR": (-1.5, 0, -0.04),
+                "ArmL": (-0.35, 0, 0.06), "ArmR": (-0.35, 0, -0.06)}
+
+    def handsup(u):
+        s = S(PI2 * u)
+        return {"Hips": {"loc": (0, 0.02 * s, 0)}, "Torso": (0.03, 0, 0), "Head": (0.12, 0, 0),
+                "ArmL": (0, 0, 2.6 + 0.05 * s), "ArmR": (0, 0, -2.6 - 0.05 * s)}
+
+    def reach(u):
+        s = S(PI2 * u)
+        return {"Hips": {"loc": (0, 0.02 * s, 0)}, "Torso": (0.1, 0, 0), "Head": (-0.05, 0, 0),
+                "ArmL": (-1.45 + 0.05 * s, 0, -0.12), "ArmR": (-1.45 - 0.05 * s, 0, 0.12)}
+
+    def shiver(u):
+        s = S(PI2 * 4 * u)
+        return {"Hips": {"loc": (0.05 * s, -0.12, 0)}, "Torso": (0.12, 0.05 * s, 0), "Head": (0.22, -0.05 * s, 0),
+                "ArmL": (-0.95, 0, -0.42 + 0.04 * s), "ArmR": (-0.95, 0, 0.42 - 0.04 * s),
+                "LegL": (0, 0, -0.08), "LegR": (0, 0, 0.08)}
+
+    def eat(u):
+        s = S(PI2 * 3 * u)
+        return {"Hips": {"loc": (0, 0.03 * abs(s), 0)}, "Torso": (0.08, 0, 0), "Head": (0.1 + 0.08 * s, 0, 0),
+                "ArmR": (-2.0 + 0.45 * s, 0, 0.35), "ArmL": (-2.0 - 0.45 * s, 0, -0.35)}
+
+    def block(u):
+        s = S(PI2 * u)
+        return {"Hips": {"loc": (0, 0.01 * s, 0)}, "Torso": (-0.03, 0, 0), "Head": (0.04, 0, 0),
+                "ArmL": (0, 0, 1.35 + 0.03 * s), "ArmR": (0, 0, -1.35 - 0.03 * s),
+                "LegL": (0, 0, 0.16), "LegR": (0, 0, -0.16)}
+
+    clips = [("Sit", sit, 60), ("HandsUp", handsup, 60), ("Reach", reach, 60), ("Shiver", shiver, 30),
+             ("Eat", eat, 60), ("Block", block, 60),
+             ("Idle", idle, 60), ("Walk", walk, 30), ("Run", run, 20), ("Talk", talk, 60),
              ("Wave", wave, 60), ("Shock", shock, 45), ("Cheer", cheer, 30), ("Sad", sad, 90),
              ("Point", point, 60), ("LookUp", lookup, 60)]
 
@@ -453,6 +501,135 @@ def build_town():
     export(os.path.join(OUT, "town.glb"), False)
 
 
+def build_sets():
+    """Extra sets and props at character scale; each object is placed in Three.js."""
+    reset()
+    rnd = random.Random(11)
+    PI2 = math.tau
+
+    # --- Zero's bedroom (open towards -Y)
+    r = Builder("Room")
+    wood, wall = mat("RoomFloor", "#c79a6b", 0.8), mat("RoomWall", "#9ec5e8", 0.95)
+    white, dark = mat("RoomWhite", "#f6f1e7", 0.8), mat("RoomWood", "#7a4b34", 0.8)
+    r.box((24, 18, 0.4), (0, 0, -0.2), wood)
+    r.box((9, 6, 0.06), (1, -2, 0.03), mat("Rug", "#6aa6d6", 1.0), 0.02, 1)
+    r.box((24, 0.5, 13), (0, 8.75, 6.5), wall)
+    for sx in (-1, 1):
+        r.box((0.5, 18, 13), (sx * 12.25, 0, 6.5), wall)
+    r.box((24.5, 0.3, 0.7), (0, 8.4, 0.35), white)
+    r.box((7, 0.3, 6.2), (5, 8.42, 7), white, 0.05, 1)
+    for x, y in ((-11.2, 3.3), (-1.8, 3.3), (-11.2, 8.1), (-1.8, 8.1)):
+        r.box((0.5, 0.5, 2.7), (x, y, 1.35), dark, 0.05, 1)
+    r.box((10, 5.4, 0.5), (-6.5, 5.7, 2.95), dark, 0.08, 2)
+    r.box((9.6, 5.0, 0.9), (-6.5, 5.7, 3.65), white, 0.2, 3)
+    r.box((6.5, 5.1, 0.95), (-4.9, 5.7, 3.72), mat("Blanket", "#e2574c", 0.9), 0.2, 3)
+    r.box((2.2, 3.4, 0.6), (-10.1, 5.7, 4.35), mat("Pillow", "#fdf6e3", 0.9), 0.2, 3)
+    r.box((0.5, 5.4, 3.2), (-11.45, 5.7, 4.3), dark, 0.1, 2)
+    r.box((7, 3.4, 0.35), (6.5, -1.5, 2.9), dark, 0.06, 2)
+    for x, y in ((3.3, -2.9), (9.7, -2.9), (3.3, -0.1), (9.7, -0.1)):
+        r.box((0.4, 0.4, 2.75), (x, y, 1.38), dark)
+    r.box((0.8, 0.8, 0.2), (9.2, -0.8, 3.18), mat("LampBase", "#3b3f4a", 0.5), 0.05, 1)
+    r.box((0.16, 0.16, 1.1), (9.2, -0.8, 3.8), mat("LampBase", "#3b3f4a", 0.5))
+    r.box((1.1, 1.1, 0.8), (9.2, -0.8, 4.7), mat("RoomLamp", "#fff1c2", 0.4, emit="#ffe2a0"), 0.2, 3)
+    r.box((0.8, 6, 0.3), (11.6, 3, 6), dark)
+    for i, hx in enumerate(("#e76f51", "#2a9d8f", "#e9c46a", "#577590", "#b56576")):
+        r.box((0.7, 0.5, 1.5 - 0.15 * (i % 2)), (11.55, 0.9 + i * 0.75, 6.9), mat("Book%d" % i, hx, 0.9))
+    r.box((4.2, 0.1, 3.2), (-6.5, 8.45, 9), mat("Poster", "#27304f", 0.9))
+    r.blob(0.9, (-6.5, 8.38, 9), mat("PosterPlanet", "#f2b632", 0.9), (1, 0.15, 1))
+    r.box((3, 2.2, 2), (-9.3, -5, 1), mat("ToyBox", "#7fb069", 0.9), 0.15, 2)
+    r.finish()
+    w = Builder("RoomWindow")
+    w.quad([(2.2, 8.2, 4.4), (7.8, 8.2, 4.4), (7.8, 8.2, 9.6), (2.2, 8.2, 9.6)], mat("RoomWindowMat", "#35506e", 0.3))
+    w.finish()
+
+    # --- forest clearing with a crater
+    f = Builder("Forest")
+    f.box((240, 240, 0.4), (0, 0, -0.2), mat("ForestGround", "#2f5d3a", 1.0))
+    f.blob(10, (0, 0, -0.2), mat("Dirt", "#4a3528", 1.0), (1, 1, 0.09))
+    rock = mat("Rock", "#6b6b78", 0.95)
+    for i in range(14):
+        a = i / 14 * PI2
+        f.box((2.4, 2.2, 1.4 + rnd.random()), (9 * math.cos(a), 9 * math.sin(a), 0.5), rock, 0.5, 2, rot_z=rnd.random() * 3)
+    trunk = mat("PineTrunk", "#5a3d2b", 0.95)
+    leaves = [mat("Pine%d" % i, h, 0.95) for i, h in enumerate(("#1f6b45", "#267a4f", "#1a5a3c"))]
+    n = 0
+    while n < 70:
+        a, d = rnd.random() * PI2, 17 + rnd.random() * 85
+        x, y = d * math.cos(a), d * math.sin(a)
+        if y < -4 and abs(x) < 10:
+            continue  # keep the camera corridor clear
+        k = 0.8 + rnd.random() * 0.7
+        lf = rnd.choice(leaves)
+        f.box((1.0 * k, 1.0 * k, 5 * k), (x, y, 2.5 * k), trunk, 0.15, 1)
+        for rr, zz in ((3.6, 6.3), (2.9, 9.4), (2.0, 12.2)):
+            f.blob(rr * k, (x, y, zz * k), lf, (1, 1, 1.05))
+        n += 1
+    f.finish()
+
+    s = Builder("Saucer")
+    hull = mat("SaucerHull", "#b9c2d0", 0.35)
+    s.blob(4.6, (0, 0, 1.7), hull, (1, 1, 0.26), sub=3)
+    s.blob(2.3, (0, 0, 2.5), mat("SaucerGlass", "#7de8c0", 0.2, emit="#7de8c0"), (1, 1, 0.85), sub=3)
+    for i in range(8):
+        a = i / 8 * PI2
+        s.box((0.6, 0.6, 0.35), (3.7 * math.cos(a), 3.7 * math.sin(a), 1.45), mat("SaucerLight", "#b6ff6a", 0.3, emit="#b6ff6a"), 0.1, 1)
+    for i in range(3):
+        a = i / 3 * PI2
+        s.box((0.3, 0.3, 1.6), (2.6 * math.cos(a), 2.6 * math.sin(a), 0.7), hull)
+    s.finish()
+
+    # --- car (front towards -Y)
+    c = Builder("Car")
+    paint, glass, tire = mat("CarPaint", "#d8463f", 0.45), mat("CarGlass", "#9fd3e6", 0.2), mat("Tire", "#22222a", 0.9)
+    c.box((5.6, 11, 2.2), (0, 0, 2.1), paint, 0.4, 3)
+    c.box((5.0, 5.4, 2.0), (0, 0.8, 4.0), paint, 0.45, 3)
+    c.box((4.3, 0.2, 1.25), (0, -1.86, 4.1), glass)
+    c.box((4.3, 0.2, 1.25), (0, 3.46, 4.1), glass)
+    for sx in (-1, 1):
+        c.box((0.2, 4.2, 1.25), (sx * 2.46, 0.8, 4.1), glass)
+        for sy in (-3.4, 3.5):
+            c.box((1.0, 2.3, 2.3), (sx * 2.6, sy, 1.15), tire, 0.5, 3)
+        c.box((1.1, 0.2, 0.6), (sx * 1.8, -5.46, 2.5), mat("CarLight", "#fff1c2", 0.3, emit="#ffe2a0"))
+    c.box((5.9, 0.5, 0.6), (0, -5.4, 1.3), mat("Bumper", "#c9c9d2", 0.5), 0.1, 2)
+    c.box((5.9, 0.5, 0.6), (0, 5.4, 1.3), mat("Bumper", "#c9c9d2", 0.5), 0.1, 2)
+    c.finish()
+
+    # --- mothership (centred on the origin)
+    m = Builder("Mothership")
+    m.blob(60, (0, 0, 0), mat("ShipHull", "#2c3340", 0.4), (1, 1, 0.16), sub=4)
+    m.blob(22, (0, 0, 6), mat("ShipDome", "#3d4758", 0.35), (1, 1, 0.45), sub=3)
+    for i in range(20):
+        a = i / 20 * PI2
+        m.box((5, 5, 1.4), (44 * math.cos(a), 44 * math.sin(a), -6.2), mat("ShipLight", "#7dffa0", 0.3, emit="#7dffa0"), 0.6, 2, rot_z=a)
+    m.blob(11, (0, 0, -9), mat("ShipHatch", "#d8ffe0", 0.3, emit="#b6ff6a"), (1, 1, 0.14), sub=3)
+    m.finish()
+
+    # --- the family house (front towards -Y)
+    h = Builder("House")
+    hw, white2 = mat("HouseWall", "#f0d27a", 0.9), mat("HouseTrim", "#f7f1e6", 0.8)
+    roof = mat("HouseRoof", "#b5533c", 0.85)
+    h.box((22, 12, 13), (0, 0, 6.5), hw, 0.25, 2)
+    h.box((23.6, 13.6, 0.8), (0, 0, 13.4), roof, 0.2, 2)
+    h.box((17, 13.9, 2.2), (0, 0, 14.9), roof, 0.5, 2)
+    h.box((9, 14.1, 1.8), (0, 0, 16.9), roof, 0.5, 2)
+    h.box((2, 2, 4), (7, 2, 17), mat("Chimney", "#8d4f45", 0.9), 0.15, 2)
+    h.box((4.4, 0.4, 6.6), (-4, -6.05, 3.3), white2)
+    h.box((3.6, 0.4, 6.0), (-4, -6.15, 3.0), mat("HouseDoor", "#2a9d8f", 0.7), 0.05, 1)
+    h.blob(0.22, (-2.8, -6.4, 3.0), mat("Knob", "#ffd23c", 0.3))
+    h.box((6, 2.2, 0.4), (-4, -7.1, 0.2), mat("Step", "#b9b2a8", 0.9), 0.08, 1)
+    h.box((7, 0.4, 6.2), (5, -6.05, 6.5), white2, 0.05, 1)
+    for x in (-6.5, 6.5):
+        h.box((3.4, 0.4, 2.6), (x, -6.05, 11), white2)
+        h.box((2.8, 0.4, 2.0), (x, -6.12, 11), mat("HouseGlass", "#35506e", 0.25, emit="#ffd9a0"))
+    h.finish()
+    hwq = Builder("HouseWindow")
+    hwq.quad([(2.2, -6.3, 3.8), (7.8, -6.3, 3.8), (7.8, -6.3, 9.2), (2.2, -6.3, 9.2)], mat("HouseWindowMat", "#35506e", 0.3))
+    hwq.finish()
+
+    export(os.path.join(OUT, "sets.glb"), False)
+
+
 build_character()
 build_town()
+build_sets()
 print("DONE")

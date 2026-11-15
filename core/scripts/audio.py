@@ -1,15 +1,20 @@
-"""Synthesise the music bed and the sound-effects track from story/plan.json.
-Run from the project root:  python3 pilot/scripts/audio.py
-Outputs pilot/assets/audio/music.wav and sfx.wav (44.1 kHz stereo)."""
+"""Synthesise the music bed and the sound-effects track from <film>/story/plan.json.
+Run from the project root:  python3 core/scripts/audio.py <film>
+Outputs <film>/assets/audio/music.wav and sfx.wav (44.1 kHz stereo)."""
 import json
 import os
+import sys
 import wave
 
 import numpy as np
 
-HERE = os.path.dirname(os.path.abspath(__file__))
-PLAN = json.load(open(os.path.join(HERE, "../story/plan.json")))
-OUT = os.path.join(HERE, "../assets/audio")
+ROOT = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "../.."))
+if len(sys.argv) < 2:
+    sys.exit("Give a film name, e.g. zark (a folder under outputs/)")
+FILM = sys.argv[1] if os.path.isabs(sys.argv[1]) else os.path.join(ROOT, "outputs", sys.argv[1])
+PLAN = json.load(open(os.path.join(FILM, "story/plan.json")))
+OUT = os.path.join(FILM, "assets/audio")
+os.makedirs(OUT, exist_ok=True)
 SR = 44100
 DUR = PLAN["duration"]
 N = int(SR * DUR)
@@ -56,37 +61,59 @@ def note(freq, dur, kind="pluck"):
 
 
 # ------------------------------------------------------------------ music
-night = PLAN["cuts"]["night"]
-cliff = PLAN["cuts"]["cliffA"]
+# The plan lists mood sections: day (bouncy plucks), warm (slower, major),
+# dark (heartbeat bass) and tense (heartbeat plus ticking).
 music = np.zeros(N)
 BPM = 132
 beat = 60 / BPM
 D = 146.83
-scale = [1, 9 / 8, 6 / 5, 4 / 3, 3 / 2, 8 / 5, 9 / 5]  # D minor
+MINOR = [1, 9 / 8, 6 / 5, 4 / 3, 3 / 2, 8 / 5, 9 / 5]
+MAJOR = [1, 9 / 8, 5 / 4, 4 / 3, 3 / 2, 5 / 3, 15 / 8]
 arp = [0, 2, 4, 2, 0, 4, 6, 4]
+secs = PLAN["sections"] or [{"t": 0, "mood": "day"}]
+
+
+def mood_at(x):
+    m = secs[0]["mood"]
+    for s_ in secs:
+        if s_["t"] <= x:
+            m = s_["mood"]
+    return m
+
+
 k = 0
 tt_ = 0.0
 while tt_ < DUR - 0.3:
-    dark = tt_ >= night
-    if not dark:  # bouncy day section: plucks on eighths, bass on beats
-        put(music, tt_, note(D * 2 * scale[arp[k % 8]], 0.3), 0.20)
+    m = mood_at(tt_)
+    if m == "day":
+        put(music, tt_, note(D * 2 * MINOR[arp[k % 8]], 0.3), 0.20)
         if k % 2 == 0:
             put(music, tt_, note(D / 2 * (1 if (k // 8) % 2 == 0 else 4 / 3), 0.4, "bass"), 0.42)
-    else:  # night: heartbeat bass, sparse high plucks
+    elif m == "warm":
+        if k % 2 == 0:
+            put(music, tt_, note(D * 2 * MAJOR[arp[(k // 2) % 8]], 0.6), 0.22)
+        if k % 8 == 0:
+            put(music, tt_, note(D / 2 * (1 if (k // 16) % 2 == 0 else 3 / 2), 0.8, "bass"), 0.4)
+    else:
         if k % 4 in (0, 1):
             put(music, tt_, note(D / 2, 0.35, "bass"), 0.6 if k % 4 == 0 else 0.4)
-        if k % 8 == 5:
-            put(music, tt_, note(D * 4 * scale[(k // 8) % 3 * 2 % 7], 0.5), 0.10)
+        if m == "tense":
+            put(music, tt_, note(D * 4 * MINOR[(k * 3) % 7], 0.12), 0.07)
+        elif k % 8 == 5:
+            put(music, tt_, note(D * 4 * MINOR[(k // 8) % 3 * 2 % 7], 0.5), 0.10)
     tt_ += beat / 2
     k += 1
-for start, f, d, g in ((0, D, night, 0.10), (night, D / 2 * 6 / 5, cliff - night, 0.16),
-                       (night, D / 2, DUR - night, 0.20), (cliff, D * 3 / 2 * 16 / 15, DUR - cliff, 0.12)):
-    put(music, start, note(f, d, "pad"), g)
-# riser into the tower reveal
-n = int(1.6 * SR)
-tr = np.arange(n) / SR
-riser = lowpass(rng.standard_normal(n), 0.08) * (tr / 1.6) ** 2 * 2.5
-put(music, cliff - 1.6, riser, 0.35)
+for i, s_ in enumerate(secs):
+    end = secs[i + 1]["t"] if i + 1 < len(secs) else DUR
+    f = {"day": D, "warm": D * 5 / 4, "dark": D / 2 * 6 / 5, "tense": D / 2 * 16 / 15}[s_["mood"]]
+    if end - s_["t"] > 1.6:
+        put(music, s_["t"], note(f, end - s_["t"], "pad"), 0.13)
+        put(music, s_["t"], note(D / 2, end - s_["t"], "pad"), 0.10)
+for e in PLAN["events"]:  # noise risers into the big hits
+    if e["type"] in ("hit", "boom") and e["t"] > 2:
+        n = int(1.2 * SR)
+        tr = np.arange(n) / SR
+        put(music, e["t"] - 1.2, lowpass(rng.standard_normal(n), 0.08) * (tr / 1.2) ** 2 * 2.5, 0.22)
 music *= np.minimum(1, np.minimum(t / 0.3, (DUR - t) / 1.0)).clip(0, 1)
 
 # -------------------------------------------------------------------- sfx

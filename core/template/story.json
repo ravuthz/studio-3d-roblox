@@ -1,0 +1,9 @@
+{
+  "title": "In this town, ...",
+  "names": ["Zero", "Zeebra", "Luna", "Zip"],
+  "voice": { "model": "eleven_multilingual_v2", "speed": 1.0, "stability": 0.4, "similarity": 0.8, "style": 0.35 },
+  "lines": [
+    { "id": "hook", "text": "In this town, everyone has a secret.", "big": ["secret"], "mood": "day" },
+    { "id": "zero", "text": "My name is Zero. And I know all of them.", "cuts": ["and"], "big": ["Zero", "all"], "hits": [1] }
+  ]
+}

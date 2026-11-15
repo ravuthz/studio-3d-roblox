@@ -2,27 +2,18 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "pilot-preview",
+      "name": "film-preview",
       "runtimeExecutable": "npx",
       "runtimeArgs": [
         "--yes",
         "hyperframes@0.9.22",
         "preview",
-        "pilot",
+        "outputs/zark",
         "--port=3002",
         "--no-open",
         "--foreground"
       ],
       "port": 3002
-    },
-    {
-      "name": "start",
-      "runtimeExecutable": "npm",
-      "runtimeArgs": [
-        "run",
-        "start"
-      ],
-      "port": 3000
     }
   ]
 }

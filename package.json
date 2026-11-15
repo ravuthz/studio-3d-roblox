@@ -5,12 +5,7 @@
   "main": "index.js",
   "scripts": {
     "start": "node --env-file=.env.local elevenlabs.js",
-    "pilot:assets": "/Applications/Blender.app/Contents/MacOS/Blender -b --factory-startup -P pilot/blender/build_assets.py -- pilot/assets",
-    "pilot:voice": "node --env-file=.env.local pilot/scripts/tts.mjs",
-    "pilot:plan": "node pilot/scripts/plan.mjs",
-    "pilot:audio": "python3 pilot/scripts/audio.py",
-    "pilot:preview": "cd pilot && npx --yes hyperframes@0.9.22 preview",
-    "pilot:render": "cd pilot && npx --yes hyperframes@0.9.22 render --quality looks -o renders/zero-pilot.mp4"
+    "film": "node core/scripts/film.mjs"
   },
   "keywords": [],
   "author": "",
