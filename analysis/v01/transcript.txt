@@ -1,0 +1,53 @@
+[   0.00 -    3.44] In this town, everyone has a bunker, except me.
+[   4.04 -    4.84] My name is Jake.
+[   5.38 -    7.84] 10 years ago, the zombie apocalypse began.
+[   8.34 -   10.54] Every family was given an underground bunker,
+[  10.90 -   12.56] but no two bunkers were the same.
+[  13.26 -   15.64] Bunker number one was made entirely of glass,
+[  15.96 -   16.96] deep beneath the ocean.
+[  17.64 -   19.64] Bunker number seven was a luxury mansion
+[  19.64 -   22.58] with a pool, movie theater, and unlimited food.
+[  23.26 -   26.74] Bunker number 12 had one rule, never make a sound.
+[  26.74 -   30.60] And bunker number 66 had 100 metal doors,
+[  30.74 -   32.82] but nobody could open the last one.
+[  33.38 -   35.64] Some people lived like kings, but me?
+[  36.14 -   38.24] I slept inside an abandoned gas station,
+[  38.60 -   40.46] hiding from zombies every night
+[  40.46 -   42.58] until I noticed something strange.
+[  43.08 -   44.66] The zombies never attacked me.
+[  44.92 -   47.92] They chased everyone else, but whenever I walked past,
+[  48.40 -   50.72] they just stopped and stared.
+[  51.34 -   53.06] So one day, I followed them.
+[  53.38 -   55.38] They led me beneath an abandoned hospital
+[  55.38 -   57.34] to a giant metal door.
+[  57.94 -   58.72] Bunker 100.
+[  59.40 -   61.02] When I touched it, it opened.
+[  61.94 -   63.84] Inside were hundreds of security monitors,
+[  64.10 -   65.72] showing every bunker in the city,
+[  66.04 -   68.08] and in the middle was a giant screen.
+[  68.52 -   70.32] It displayed every person's name,
+[  70.64 -   72.76] but when I searched for mine, nothing.
+[  73.38 -   74.92] Instead, a message appeared.
+[  75.54 -   77.06] Subject zero has returned.
+[  77.76 -   79.70] Suddenly, every screen turned red.
+[  80.08 -   81.96] All bunkers, initiate lockdown.
+[  81.96 -   83.20] I turned around.
+[  83.92 -   85.40] Hundreds of zombies stood behind me,
+[  85.50 -   86.56] but they weren't attacking.
+[  87.00 -   87.64] They were waiting.
+[  88.20 -   89.92] Then, an old recording appeared,
+[  90.28 -   92.24] a scientist holding a newborn baby.
+[  92.74 -   95.82] That baby was me, and underneath were the words,
+[  96.26 -   97.50] the first infected.
+[  97.88 -   98.98] That's when I understood.
+[  99.40 -  101.82] The bunkers weren't built to protect people from zombies.
+[ 102.28 -  105.00] They were built to protect everyone from me.
+[ 105.40 -  107.32] And for the first time in 10 years,
+[ 107.70 -  109.28] every zombie bowed down.
+[ 109.28 -  111.58] But suddenly, another message appeared.
+[ 112.18 -  113.90] Subject zero has been activated.
+[ 114.40 -  115.24] A countdown began.
+[ 115.78 -  117.60] Ten, nine, eight.
+[ 118.24 -  120.66] Then, every bunker door in the city started opening,
+[ 121.06 -  121.94] and a voice whispered,
+[ 122.56 -  123.76] phase two has begun.

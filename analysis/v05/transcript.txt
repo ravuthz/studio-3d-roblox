@@ -1,0 +1,52 @@
+[   0.00 -    4.46] In this town, everyone must choose between two pills on their 16th birthday.
+[   4.90 -    7.08] The gold pill makes you rich for life.
+[   7.52 -   10.76] But the black pill reveals the biggest secret in our city.
+[  11.20 -   13.60] And once you choose, there's no going back.
+[  14.34 -   17.28] My name is Lucas, and tomorrow I turn 16.
+[  17.76 -   21.52] I live in the poorest part of town, where families can barely afford food.
+[  21.92 -   24.80] But above us, the rich live in floating mansions
+[  24.80 -   28.12] with swimming pools, helicopters, and unlimited money.
+[  28.12 -   31.28] And every single one of them took the gold pill.
+[  31.92 -   33.14] My mom works in a factory.
+[  33.60 -   37.50] Every night, she tells me, Lucas, promise me you'll choose gold.
+[  38.06 -   42.02] But five years ago, my older sister disappeared on her 16th birthday.
+[  42.36 -   43.84] The government said she ran away.
+[  44.24 -   45.50] I never believed them.
+[  45.98 -   48.10] The next morning, a black limousine arrives.
+[  48.68 -   51.00] Two guards take me to the pill selection center.
+[  51.46 -   53.42] Inside, hundreds of kids are waiting.
+[  53.88 -   56.04] I watch my best friend step onto the stage.
+[  56.04 -   57.90] He swallows the gold pill.
+[  58.74 -   61.48] Suddenly, his clothes transform into an expensive suit.
+[  61.92 -   63.40] A giant screen flashes.
+[  64.08 -   64.56] New balance!
+[  64.96 -   66.14] Ten million dollars!
+[  66.78 -   67.56] Everyone cheers.
+[  68.14 -   71.42] A golden elevator opens, taking him to the luxury district.
+[  71.96 -   73.14] Ten million dollars?
+[  73.46 -   75.20] Just for swallowing one pill?
+[  75.76 -   77.00] Then, it's my turn.
+[  77.44 -   80.18] An official places two glowing pills in front of me.
+[  80.64 -   82.94] Gold gives you everything you've ever wanted.
+[  83.30 -   84.46] He points to the black pill.
+[  84.46 -   87.18] But black means you'll never be rich.
+[  87.78 -   88.64] I reach for gold.
+[  89.10 -   90.72] But suddenly, I notice something.
+[  91.34 -   93.08] Behind the official is a locked door.
+[  93.60 -   95.62] Someone slides a piece of paper underneath it.
+[  95.86 -   96.48] I pick it up.
+[  96.84 -   99.38] It says, Lucas, don't take gold.
+[  99.80 -  100.80] Trust me, Ruby.
+[ 101.54 -  101.84] Ruby?
+[ 102.30 -  103.42] That's my missing sister!
+[ 103.80 -  104.36] She's alive?
+[ 104.92 -  105.92] I stare at the pills.
+[ 106.46 -  108.78] One could save my family from poverty forever.
+[ 109.24 -  111.02] The other might help me find Ruby.
+[ 111.46 -  113.40] The official shouts, make your choice!
+[ 113.40 -  115.40] I only have ten seconds left.
+[ 115.88 -  116.60] What should I do, guys?
+[ 117.12 -  119.32] Should I take the black pill or the gold pill?
+[ 119.80 -  120.80] Vote in the poll below!
+[ 121.24 -  122.84] Whichever pill gets the most votes,
+[ 123.22 -  124.80] that's the one I'll take in part two.

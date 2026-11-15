@@ -1,0 +1,458 @@
+"""Build the pilot's 3D assets procedurally and export them as GLB.
+
+Run headless:
+  /Applications/Blender.app/Contents/MacOS/Blender -b --factory-startup \
+      -P pilot/blender/build_assets.py -- pilot/assets
+
+Outputs:
+  character.glb  one blocky rig (8 bones), body parts, hair/accessory variants for
+                 Zero, Zeebra, Luna and Zip, and baked animation clips
+  town.glb       a street set with houses, lamps, trees and a count-board tower
+
+Blender is Z-up and the character faces -Y; the glTF exporter converts to Y-up,
+so in Three.js the character faces +Z.
+"""
+import math
+import os
+import random
+import sys
+
+import bmesh
+import bpy
+from mathutils import Matrix, Vector
+
+OUT = sys.argv[sys.argv.index("--") + 1] if "--" in sys.argv else "pilot/assets"
+OUT = os.path.abspath(OUT)
+os.makedirs(OUT, exist_ok=True)
+FPS = 30
+
+
+# ----------------------------------------------------------------- helpers
+def srgb(hex_):
+    h = hex_.lstrip("#")
+    c = [int(h[i:i + 2], 16) / 255 for i in (0, 2, 4)]
+    return [x / 12.92 if x <= 0.04045 else ((x + 0.055) / 1.055) ** 2.4 for x in c] + [1.0]
+
+
+_mats = {}
+
+
+def mat(name, hex_="#ffffff", rough=0.8, emit=None):
+    if name in _mats:
+        return _mats[name]
+    m = bpy.data.materials.new(name)
+    try:
+        m.use_nodes = True
+    except Exception:
+        pass
+    bsdf = next(n for n in m.node_tree.nodes if n.type == "BSDF_PRINCIPLED")
+    bsdf.inputs["Base Color"].default_value = srgb(hex_)
+    bsdf.inputs["Roughness"].default_value = rough
+    if emit:
+        bsdf.inputs["Emission Color"].default_value = srgb(emit)
+        bsdf.inputs["Emission Strength"].default_value = 1.0
+    _mats[name] = m
+    return m
+
+
+class Builder:
+    """Accumulates boxes and blobs into one mesh with several materials."""
+
+    def __init__(self, name):
+        self.name = name
+        self.bm = bmesh.new()
+        self.uv = self.bm.loops.layers.uv.new("UVMap")
+        self.mats = []
+
+    def _mi(self, m):
+        if m not in self.mats:
+            self.mats.append(m)
+        return self.mats.index(m)
+
+    def box(self, size, center, m, bevel=0.0, seg=2, rot_z=0.0, rot_x=0.0):
+        r = bmesh.ops.create_cube(self.bm, size=1.0)
+        verts = r["verts"]
+        bmesh.ops.scale(self.bm, vec=Vector(size), verts=verts)
+        faces = {f for v in verts for f in v.link_faces}
+        if bevel > 0:
+            edges = list({e for v in verts for e in v.link_edges})
+            res = bmesh.ops.bevel(self.bm, geom=edges, offset=bevel, segments=seg,
+                                  profile=0.5, affect="EDGES")
+            faces |= set(res["faces"])
+            faces = {f for f in faces if f.is_valid}
+            verts = list({v for f in faces for v in f.verts})
+        rot = Matrix.Rotation(rot_z, 4, "Z") @ Matrix.Rotation(rot_x, 4, "X")
+        bmesh.ops.transform(self.bm, matrix=Matrix.Translation(Vector(center)) @ rot,
+                            verts=verts)
+        mi = self._mi(m)
+        for f in faces:
+            f.material_index = mi
+            f.smooth = True
+        return verts
+
+    def blob(self, radius, center, m, scale=(1, 1, 1)):
+        r = bmesh.ops.create_icosphere(self.bm, subdivisions=2, radius=radius)
+        verts = r["verts"]
+        bmesh.ops.scale(self.bm, vec=Vector(scale), verts=verts)
+        bmesh.ops.translate(self.bm, vec=Vector(center), verts=verts)
+        mi = self._mi(m)
+        for f in {f for v in verts for f in v.link_faces}:
+            f.material_index = mi
+            f.smooth = True
+
+    def quad(self, corners, m):
+        """corners: bl, br, tr, tl; gets a 0..1 UV."""
+        vs = [self.bm.verts.new(c) for c in corners]
+        f = self.bm.faces.new(vs)
+        f.material_index = self._mi(m)
+        for loop, uv in zip(f.loops, [(0, 0), (1, 0), (1, 1), (0, 1)]):
+            loop[self.uv].uv = uv
+
+    def finish(self, collection=None):
+        me = bpy.data.meshes.new(self.name)
+        self.bm.normal_update()
+        self.bm.to_mesh(me)
+        self.bm.free()
+        for m in self.mats:
+            me.materials.append(m)
+        me.set_sharp_from_angle(angle=math.radians(50))
+        ob = bpy.data.objects.new(self.name, me)
+        (collection or bpy.context.scene.collection).objects.link(ob)
+        wn = ob.modifiers.new("WeightedNormal", "WEIGHTED_NORMAL")
+        wn.keep_sharp = True
+        wn.weight = 60
+        return ob
+
+
+def reset():
+    bpy.ops.wm.read_factory_settings(use_empty=True)
+    _mats.clear()
+    bpy.context.scene.render.fps = FPS
+
+
+def export(path, animations):
+    bpy.ops.object.select_all(action="SELECT")
+    kw = dict(filepath=path, export_format="GLB", use_selection=True, export_apply=True,
+              export_yup=True, export_animations=animations, export_skins=True,
+              export_materials="EXPORT")
+    if animations:
+        kw.update(export_animation_mode="NLA_TRACKS", export_force_sampling=True,
+                  export_optimize_animation_size=False, export_frame_range=False)
+    bpy.ops.export_scene.gltf(**kw)
+    print("EXPORTED", path, round(os.path.getsize(path) / 1024), "KB")
+
+
+# --------------------------------------------------------------- character
+BONES = {  # name: (head, parent)
+    "Root": ((0, 0, 0), None),
+    "Hips": ((0, 0, 2), "Root"),
+    "Torso": ((0, 0, 2.05), "Hips"),
+    "Head": ((0, 0, 4), "Torso"),
+    "ArmL": ((1.5, 0, 3.8), "Torso"),
+    "ArmR": ((-1.5, 0, 3.8), "Torso"),
+    "LegL": ((0.5, 0, 2), "Hips"),
+    "LegR": ((-0.5, 0, 2), "Hips"),
+}
+
+
+def build_character():
+    reset()
+    arm_data = bpy.data.armatures.new("Rig")
+    rig = bpy.data.objects.new("Rig", arm_data)
+    bpy.context.scene.collection.objects.link(rig)
+    bpy.context.view_layer.objects.active = rig
+    bpy.ops.object.mode_set(mode="EDIT")
+    for name, (head, parent) in BONES.items():
+        b = arm_data.edit_bones.new(name)
+        b.head = head
+        b.tail = (head[0], head[1], head[2] + 0.5)
+        b.align_roll(Vector((0, -1, 0)))  # local Z = character front, local X = world X
+        if parent:
+            b.parent = arm_data.edit_bones[parent]
+    bpy.ops.object.mode_set(mode="OBJECT")
+
+    skin, shirt, pants = mat("Skin", "#f2c9a0"), mat("Shirt", "#e9e9ee"), mat("Pants", "#2f3a56")
+    shoes, hair = mat("Shoes", "#f4f4f4"), mat("Hair", "#2a2440")
+    hair2, acc = mat("HairStreak", "#ffffff"), mat("Acc", "#ffd23c")
+    face, chest = mat("Face", "#ffffff"), mat("Chest", "#ffffff")
+
+    def part(name, bone, fn):
+        b = Builder("M_" + name)
+        fn(b)
+        ob = b.finish()
+        vg = ob.vertex_groups.new(name=bone)
+        vg.add(range(len(ob.data.vertices)), 1.0, "REPLACE")
+        ob.parent = rig
+        ob.modifiers.new("Armature", "ARMATURE").object = rig
+        return ob
+
+    part("Torso", "Torso", lambda b: b.box((2, 1, 2), (0, 0, 3), shirt, 0.09, 3))
+    part("Chest", "Torso", lambda b: b.quad(
+        [(-0.92, -0.512, 2.08), (0.92, -0.512, 2.08), (0.92, -0.512, 3.92), (-0.92, -0.512, 3.92)], chest))
+    part("Head", "Head", lambda b: b.box((1.3, 1.3, 1.2), (0, 0, 4.63), skin, 0.24, 4))
+    part("Face", "Head", lambda b: b.quad(
+        [(-0.6, -0.662, 4.03), (0.6, -0.662, 4.03), (0.6, -0.662, 5.23), (-0.6, -0.662, 5.23)], face))
+    for side, x in (("L", 1.5), ("R", -1.5)):
+        def arm(b, x=x):
+            b.box((0.96, 0.96, 1.45), (x, 0, 3.275), shirt, 0.09, 3)
+            b.box((0.9, 0.9, 0.6), (x, 0, 2.3), skin, 0.12, 3)
+        part("Arm" + side, "Arm" + side, arm)
+    for side, x in (("L", 0.5), ("R", -0.5)):
+        def leg(b, x=x):
+            b.box((0.96, 0.96, 1.7), (x, 0, 1.2), pants, 0.07, 3)
+            b.box((1.0, 1.25, 0.42), (x, -0.12, 0.21), shoes, 0.1, 3)
+        part("Leg" + side, "Leg" + side, leg)
+
+    # --- hair and accessories, one object per character, all on the Head bone
+    def hair_zero(b):
+        b.box((1.44, 1.44, 0.5), (0, 0.02, 5.1), hair, 0.16, 3)
+        b.box((1.44, 0.5, 0.9), (0, 0.52, 4.72), hair, 0.14, 3)
+        for i, x in enumerate((-0.48, -0.16, 0.16, 0.48)):
+            b.box((0.34, 0.26, 0.24 + 0.07 * (i % 2)), (x, -0.62, 4.98 - 0.035 * (i % 2)), hair, 0.07, 2)
+        for x, y, rz in ((-0.3, -0.1, 0.5), (0.25, 0.15, -0.4), (0.0, -0.35, 0.2)):
+            b.box((0.36, 0.36, 0.42), (x, y, 5.42), hair, 0.1, 2, rot_z=rz, rot_x=0.35)
+
+    def hair_zeebra(b):
+        b.box((1.44, 1.44, 0.46), (0, 0.02, 5.1), hair, 0.14, 3)
+        b.box((1.44, 0.5, 0.8), (0, 0.52, 4.78), hair, 0.14, 3)
+        b.box((1.2, 1.15, 0.42), (0, -0.05, 5.48), hair, 0.12, 3)
+        b.box((0.3, 1.2, 0.46), (0.3, -0.07, 5.5), hair2, 0.1, 3)
+        b.box((0.3, 0.3, 0.42), (0.3, -0.64, 4.98), hair2, 0.08, 2)
+        # headphones
+        b.box((1.66, 0.22, 0.2), (0, 0.05, 5.74), acc, 0.07, 2)
+        for x in (-0.78, 0.78):
+            b.box((0.2, 0.2, 1.0), (x, 0.05, 5.25), acc, 0.07, 2)
+            b.box((0.3, 0.62, 0.62), (x * 1.03, 0.05, 4.68), acc, 0.12, 3)
+
+    def hair_luna(b):
+        b.box((1.46, 1.46, 0.5), (0, 0.02, 5.1), hair, 0.16, 3)
+        b.box((1.5, 0.42, 1.95), (0, 0.6, 4.22), hair, 0.16, 3)
+        for x in (-0.7, 0.7):
+            b.box((0.3, 0.62, 1.5), (x, 0.12, 4.42), hair, 0.1, 3)
+        b.box((0.62, 0.3, 0.3), (-0.3, -0.63, 4.97), hair, 0.08, 2)
+        b.box((0.62, 0.3, 0.22), (0.34, -0.63, 5.01), hair, 0.08, 2)
+        b.blob(0.2, (0.62, -0.5, 5.12), acc, (1, 0.5, 1))  # moon hair clip
+
+    def hair_zip(b):
+        b.box((1.42, 1.42, 0.3), (0, 0.02, 4.95), hair, 0.1, 3)
+        b.box((1.42, 0.45, 0.6), (0, 0.52, 4.72), hair, 0.12, 3)
+        b.box((1.48, 1.48, 0.46), (0, 0.02, 5.26), acc, 0.18, 3)   # cap
+        b.box((1.2, 0.62, 0.12), (0, -0.92, 5.1), acc, 0.05, 2)    # brim
+        b.box((0.3, 0.06, 0.2), (0, -0.74, 5.3), hair2, 0.02, 1)   # badge
+
+    for name, fn in (("Hair_Zero", hair_zero), ("Hair_Zeebra", hair_zeebra),
+                     ("Hair_Luna", hair_luna), ("Hair_Zip", hair_zip)):
+        part(name, "Head", fn)
+
+    bake_clips(rig)
+    export(os.path.join(OUT, "character.glb"), True)
+
+
+def bake_clips(rig):
+    """Each clip is a pose function of normalised time u in [0, 1)."""
+    S, C, PI2 = math.sin, math.cos, math.tau
+
+    def idle(u):
+        s = S(PI2 * u)
+        return {"Hips": {"loc": (0, 0.03 * s, 0)}, "Torso": (0.015 * s, 0, 0),
+                "Head": (0.02 * S(PI2 * u + 1), 0.04 * S(PI2 * u), 0),
+                "ArmL": (0, 0, 0.06 + 0.02 * s), "ArmR": (0, 0, -0.06 - 0.02 * s)}
+
+    def walk(u):
+        s = S(PI2 * u)
+        return {"Hips": {"loc": (0, 0.09 * abs(C(PI2 * u)), 0), "rot": (0, 0.06 * s, 0)},
+                "Torso": (0.05, -0.1 * s, 0), "Head": (-0.03, 0.06 * s, 0),
+                "LegL": (0.62 * s, 0, 0), "LegR": (-0.62 * s, 0, 0),
+                "ArmL": (-0.55 * s, 0, 0.05), "ArmR": (0.55 * s, 0, -0.05)}
+
+    def run(u):
+        s = S(PI2 * u)
+        return {"Hips": {"loc": (0, 0.18 * abs(C(PI2 * u)), 0), "rot": (0.1, 0.1 * s, 0)},
+                "Torso": (0.2, -0.16 * s, 0), "Head": (-0.14, 0.08 * s, 0),
+                "LegL": (1.0 * s, 0, 0), "LegR": (-1.0 * s, 0, 0),
+                "ArmL": (-1.0 * s - 0.2, 0, 0.1), "ArmR": (1.0 * s - 0.2, 0, -0.1)}
+
+    def talk(u):
+        s, s2 = S(PI2 * u), S(PI2 * 2 * u)
+        return {"Hips": {"loc": (0, 0.03 * s, 0)}, "Torso": (0.02 * s2, 0.05 * s, 0),
+                "Head": (0.05 * s2, 0.09 * s, 0.03 * s),
+                "ArmR": (-0.75 + 0.18 * s2, 0, -0.22 + 0.06 * s),
+                "ArmL": (-0.12 + 0.05 * s, 0, 0.08)}
+
+    def wave(u):
+        s = S(PI2 * 2 * u)
+        return {"Hips": {"loc": (0, 0.03 * S(PI2 * u), 0)}, "Torso": (0, 0, -0.04),
+                "Head": (0, 0, -0.08 + 0.02 * s),
+                "ArmR": (0, 0, -2.55 + 0.38 * s), "ArmL": (0, 0, 0.08)}
+
+    def shock(u):  # one-shot, holds the end pose
+        k = min(1.0, u / 0.25)
+        e = 1 - (1 - k) ** 3
+        over = 1 + 0.25 * S(math.pi * k) * (1 - k)
+        hop = 0.45 * S(math.pi * min(1.0, u / 0.45)) if u < 0.45 else 0
+        w = 0.03 * S(PI2 * 6 * u) * (1 - u)
+        return {"Hips": {"loc": (0, hop, 0)}, "Torso": (-0.2 * e * over + w, 0, 0),
+                "Head": (-0.16 * e, 0, 0),
+                "ArmL": (-0.35 * e, 0, 1.15 * e * over), "ArmR": (-0.35 * e, 0, -1.15 * e * over),
+                "LegL": (0.12 * e, 0, 0.08 * e), "LegR": (-0.05 * e, 0, -0.08 * e)}
+
+    def cheer(u):
+        s = abs(S(PI2 * u))
+        return {"Hips": {"loc": (0, 0.4 * s, 0)}, "Torso": (-0.06, 0, 0), "Head": (-0.12, 0, 0),
+                "ArmL": (0, 0, 2.7 + 0.2 * s), "ArmR": (0, 0, -2.7 - 0.2 * s),
+                "LegL": (0.15 * s, 0, 0), "LegR": (-0.1 * s, 0, 0)}
+
+    def sad(u):
+        s = S(PI2 * u)
+        return {"Hips": {"loc": (0, -0.03 + 0.015 * s, 0)}, "Torso": (0.16 + 0.015 * s, 0, 0),
+                "Head": (0.38, 0.05 * s, 0), "ArmL": (0.08, 0, 0.02), "ArmR": (0.08, 0, -0.02)}
+
+    def point(u):
+        s = S(PI2 * u)
+        return {"Hips": {"loc": (0, 0.02 * s, 0)}, "Torso": (-0.03, 0.12, 0), "Head": (-0.05, 0, 0),
+                "ArmR": (-1.5 + 0.04 * s, 0, -0.1), "ArmL": (0, 0, 0.08)}
+
+    def lookup(u):
+        s = S(PI2 * u)
+        return {"Hips": {"loc": (0, 0.02 * s, 0)}, "Torso": (-0.1, 0, 0),
+                "Head": (-0.5 + 0.02 * s, 0, 0), "ArmL": (0, 0, 0.1), "ArmR": (0, 0, -0.1)}
+
+    clips = [("Idle", idle, 60), ("Walk", walk, 30), ("Run", run, 20), ("Talk", talk, 60),
+             ("Wave", wave, 60), ("Shock", shock, 45), ("Cheer", cheer, 30), ("Sad", sad, 90),
+             ("Point", point, 60), ("LookUp", lookup, 60)]
+
+    bpy.context.view_layer.objects.active = rig
+    bpy.ops.object.mode_set(mode="POSE")
+    for pb in rig.pose.bones:
+        pb.rotation_mode = "XYZ"
+    rig.animation_data_create()
+    made = []
+    for name, fn, n in clips:
+        act = bpy.data.actions.new(name)
+        rig.animation_data.action = act
+        for f in range(n + 1):
+            pose = fn(f / n)
+            for pb in rig.pose.bones:
+                v = pose.get(pb.name, (0, 0, 0))
+                loc, rot = (0, 0, 0), v
+                if isinstance(v, dict):
+                    loc, rot = v.get("loc", (0, 0, 0)), v.get("rot", (0, 0, 0))
+                pb.location = loc
+                pb.rotation_euler = rot
+                pb.keyframe_insert("location", frame=f + 1)
+                pb.keyframe_insert("rotation_euler", frame=f + 1)
+        made.append((name, act, n))
+    rig.animation_data.action = None
+    for name, act, n in made:
+        tr = rig.animation_data.nla_tracks.new()
+        tr.name = name
+        tr.strips.new(name, 1, act)
+    for pb in rig.pose.bones:
+        pb.location = (0, 0, 0)
+        pb.rotation_euler = (0, 0, 0)
+    bpy.ops.object.mode_set(mode="OBJECT")
+
+
+# -------------------------------------------------------------------- town
+def build_town():
+    reset()
+    rnd = random.Random(7)
+    road, walk, dash = mat("Road", "#5b5560", 0.95), mat("Sidewalk", "#cfc6bb", 0.9), mat("Dash", "#f1e3b0", 0.9)
+    curb, grass = mat("Curb", "#a89f96", 0.9), mat("Grass", "#7fb069", 1.0)
+    glass = mat("Glass", "#35506e", 0.25, emit="#ffd9a0")
+    frame, door = mat("Frame", "#f7f1e6", 0.7), mat("Door", "#7a4b34", 0.7)
+    roof = mat("Roof", "#8d4f45", 0.85)
+    trunk, leaf = mat("Trunk", "#7a5136", 0.9), mat("Leaf", "#5f9e58", 0.95)
+    metal, lampglow = mat("Metal", "#3b3f4a", 0.5), mat("LampGlow", "#fff1c2", 0.4, emit="#ffe2a0")
+    red, white = mat("AwningRed", "#d8463f", 0.8), mat("AwningWhite", "#f6efe6", 0.8)
+    walls = [mat("Wall%d" % i, h, 0.9) for i, h in enumerate(
+        ["#e8c9a8", "#c9d6c3", "#e4b7a0", "#d7c4dc", "#bcd0e0", "#f0dcae", "#c98f7e", "#b9a79a"])]
+
+    g = Builder("Ground")
+    L = 90
+    g.box((16, 2 * L, 0.2), (0, 0, -0.1), road)
+    for sx in (-1, 1):
+        g.box((5, 2 * L, 0.5), (sx * 10.5, 0, 0.05), walk, 0.08, 2)
+        g.box((0.5, 2 * L, 0.56), (sx * 8.05, 0, 0.06), curb, 0.06, 2)
+        g.box((60, 2 * L, 0.2), (sx * 43, 0, -0.05), grass)
+    for y in range(-L + 4, L, 8):
+        g.box((0.4, 3.4, 0.03), (0, y, 0.012), dash)
+    for i in range(7):  # crosswalk near the count-board plaza
+        g.box((1.2, 4.5, 0.03), (-5.4 + i * 1.8, 34, 0.014), frame)
+    g.finish()
+
+    t = Builder("Town")
+
+    def house(x_sign, y, width, depth, floors, wall, pitched):
+        h = floors * 4.6 + 1.0
+        cx = x_sign * (13.2 + depth / 2)
+        t.box((depth, width, h), (cx, y, h / 2 + 0.3), wall, 0.18, 2)
+        fx = x_sign * 13.2  # facade plane
+        out = -x_sign
+        # cornice / roof
+        if pitched:
+            t.box((depth + 1.2, width + 1.0, 0.7), (cx, y, h + 0.6), roof, 0.15, 2)
+            t.box((depth * 0.62, width + 0.6, 1.6), (cx, y, h + 1.6), roof, 0.5, 2)
+        else:
+            t.box((depth + 0.9, width + 0.7, 0.8), (cx, y, h + 0.65), frame, 0.15, 2)
+        cols = max(2, int(width // 3.6))
+        for f in range(floors):
+            z = 3.4 + f * 4.6 + 0.3
+            for c in range(cols):
+                wy = y - width / 2 + (c + 0.5) * width / cols
+                if f == 0 and c == cols // 2:
+                    t.box((0.3, 2.3, 3.7), (fx + out * 0.08, wy, 2.15), frame)
+                    t.box((0.3, 1.8, 3.3), (fx + out * 0.16, wy, 1.95), door)
+                    continue
+                t.box((0.3, 2.2, 2.5), (fx + out * 0.08, wy, z), frame)
+                t.box((0.3, 1.75, 2.05), (fx + out * 0.17, wy, z), glass)
+                t.box((0.34, 0.14, 2.05), (fx + out * 0.2, wy, z), frame)
+                t.box((0.34, 1.75, 0.14), (fx + out * 0.2, wy, z), frame)
+        if rnd.random() < 0.55:  # striped awning over the ground floor
+            n = int(width // 1.0) - 1
+            for i in range(n):
+                wy = y - (n - 1) / 2 + i
+                t.box((2.2, 1.0, 0.16), (fx + out * 1.05, wy, 4.75), red if i % 2 else white,
+                      rot_z=0, rot_x=0)
+
+    for x_sign in (-1, 1):
+        y = -L + 8
+        while y < L - 8:
+            width = rnd.choice([9, 10.5, 12, 13.5])
+            house(x_sign, y + width / 2, width, rnd.choice([9, 10, 12]), rnd.choice([2, 2, 3, 3, 4]),
+                  rnd.choice(walls), rnd.random() < 0.45)
+            y += width + rnd.choice([0.0, 0.0, 1.5])
+    for x_sign in (-1, 1):
+        for y in range(-L + 10, L - 6, 18):
+            lx = x_sign * 8.9
+            t.box((0.5, 0.5, 0.5), (lx, y, 0.55), metal, 0.08, 2)
+            t.box((0.22, 0.22, 7.2), (lx, y, 3.9), metal, 0.05, 2)
+            t.box((1.7, 0.2, 0.2), (lx - x_sign * 0.75, y, 7.4), metal, 0.05, 2)
+            t.box((0.7, 0.7, 0.5), (lx - x_sign * 1.5, y, 7.15), lampglow, 0.14, 2)
+            ty = y + 9
+            tx = x_sign * 11.6
+            t.box((0.7, 0.7, 4.2), (tx, ty, 2.4), trunk, 0.12, 2)
+            for dx, dy, dz, r in ((0, 0, 5.6, 2.1), (0.9, 0.6, 6.6, 1.5), (-0.8, -0.5, 6.4, 1.6)):
+                t.blob(r, (tx + dx, ty + dy, dz), leaf, (1, 1, 0.85))
+    t.finish()
+
+    # count-board tower in a plaza at the end of the street (behind the cast)
+    b = Builder("Tower")
+    stone, dark = mat("Stone", "#8f8a99", 0.85), mat("TowerDark", "#2a2c3a", 0.6)
+    b.box((18, 8, 1.0), (0, 46, 0.5), stone, 0.2, 2)
+    b.box((11, 4.5, 26), (0, 47, 14), dark, 0.3, 2)
+    b.box((12.4, 5.4, 1.4), (0, 47, 27.6), stone, 0.3, 2)
+    b.box((3, 3, 3.2), (0, 47, 29.8), stone, 0.3, 2)
+    b.blob(1.3, (0, 47, 32.2), mat("TowerLight", "#ff5a4a", 0.4, emit="#ff5a4a"))
+    b.finish()
+    s = Builder("BoardScreen")
+    y = 47 - 2.25 - 0.06
+    s.quad([(-4.8, y, 5.5), (4.8, y, 5.5), (4.8, y, 24.5), (-4.8, y, 24.5)], mat("Screen", "#101018", 0.3))
+    s.finish()
+
+    export(os.path.join(OUT, "town.glb"), False)
+
+
+build_character()
+build_town()
+print("DONE")

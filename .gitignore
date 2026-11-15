@@ -1,0 +1,21 @@
+# Local secrets written by `elevenlabs onboard`
+/.env.local
+node_modules/
+pilot/.hyperframes/
+pilot/renders/*.log
+
+# Media derived from the reference videos (rebuild with analysis/preprocess.py and sheets.py)
+analysis/v*/audio.wav
+analysis/v*/frames/
+analysis/v*/sheets/
+analysis/preprocess.log
+
+# Rebuildable outputs
+pilot/renders/
+pilot/assets/audio/music.wav
+pilot/assets/audio/sfx.wav
+pilot/.thumbnails/
+pilot/.waveform-cache/
+
+outputs
+.DS_Store

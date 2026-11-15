@@ -1,0 +1,24 @@
+{
+  "title": "In this town, everyone is born with a number",
+  "voice": {
+    "model": "eleven_multilingual_v2",
+    "speed": 1.12,
+    "stability": 0.4,
+    "similarity": 0.8,
+    "style": 0.35
+  },
+  "lines": [
+    { "id": "hook", "text": "In this town, everyone is born with a number above their head.", "big": ["number"] },
+    { "id": "zero", "text": "My name is Zero.", "big": ["Zero"] },
+    { "id": "zeebra", "text": "My brother Zeebra is a seven.", "big": ["seven"] },
+    { "id": "luna", "text": "My mom Luna is a nine.", "big": ["nine"] },
+    { "id": "zip", "text": "And my dad Zip? A perfect ten.", "big": ["ten"] },
+    { "id": "rule", "text": "The higher your number, the better your life.", "big": ["higher", "better"] },
+    { "id": "me", "text": "But me? I have been a zero since the day I was born.", "big": ["zero"] },
+    { "id": "night", "text": "Until one night, every number in town started dropping.", "big": ["dropping"] },
+    { "id": "count", "text": "Ten. Six. Three. One.", "big": ["Ten", "Six", "Three", "One"] },
+    { "id": "panic", "text": "Everyone was terrified. Except me.", "big": ["terrified", "me"] },
+    { "id": "up", "text": "Because my number was going up.", "big": ["up"] },
+    { "id": "cliff", "text": "And then, the tower said my name.", "big": ["name"] }
+  ]
+}
