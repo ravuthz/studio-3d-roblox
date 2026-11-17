@@ -1,9 +1,24 @@
 # 3D blocky story films
 
-Code-driven vertical story shorts (1080×1920, 30 fps) in the "In this town…" format:
-blocky characters, one-word captions, a cut on every phrase, first-person narration.
-Blender builds the assets, ElevenLabs speaks the narration, Three.js stages every shot,
-HyperFrames composites and renders the MP4.
+Code-driven vertical story shorts (9:16, 1080×1920, 30 fps, **2–3 minutes by default**) in the
+"In this town…" format: blocky characters, one-word captions, a cut on every phrase, first-person
+narration. Blender builds the assets, VoxCPM2 (through the `/my-editor` skill) speaks the narration
+in a cloned voice from `voices/`, Three.js stages every shot, HyperFrames composites and renders the MP4.
+
+## Defaults for every film
+
+- **Format**: 9:16 vertical, 1080×1920, 30 fps.
+- **Length**: 2–3 minutes of narration plus the tail, unless the user asks for another length.
+- **Narration voice**: always generated with the `/my-editor` skill in voice-cloning mode, using
+  these references and no others:
+
+  | Language | Reference              |
+  | -------- | ---------------------- |
+  | Khmer    | `./voices/ravuthz.mp3` |
+  | English  | `./voices/in-town.mp3` |
+
+  Do not use ElevenLabs voices or `/my-editor` voice design for narration. See
+  "Narration with /my-editor" below.
 
 ## Layout
 
@@ -25,7 +40,8 @@ outputs/<film>/       one folder per film — only what is specific to that film
   assets/audio/vo.mp3, music.wav, sfx.wav                generated
   renders/<film>.mp4                                      generated
 analysis/             notes and scripts from studying ten reference shorts (ANALYSIS.md)
-elevenlabs.js         ElevenLabs client; key and ELEVENLABS_VOICE_ID come from .env.local
+voices/               narration references for /my-editor: in-town.mp3 (English), ravuthz.mp3 (Khmer)
+elevenlabs.js         ElevenLabs client (legacy narration); key and ELEVENLABS_VOICE_ID come from .env.local
 ```
 
 `outputs/` is git-ignored, so film sources are not versioned unless that rule is changed.
@@ -42,12 +58,15 @@ elevenlabs.js         ElevenLabs client; key and ELEVENLABS_VOICE_ID come from .
    their scripts, characters or shots.
 5. The family is fixed: Zero (narrator, the kid), Zeebra (elder brother), Luna (mother), Zip (father).
 6. Never read, print or commit `.env.local`. The voice step reads the key itself.
+7. Narration always uses the `/my-editor` voice clone for the film's language (English:
+   `voices/in-town.mp3`, Khmer: `voices/ravuthz.mp3`). Never overwrite or edit files in `voices/`.
+8. A new film is 9:16 and 2–3 minutes long unless the user asks otherwise.
 
 ## Commands
 
 ```bash
 npm run film new <name> "Title"   # scaffold outputs/<name>/
-npm run film voice <name>         # narration + word timings (cached; costs credits when text changes)
+npm run film voice <name>         # LEGACY ElevenLabs narration; new films use /my-editor (see below)
 npm run film plan <name>          # cut times, sound events, durations
 npm run film audio <name>         # synthesised music and effects (needs python with numpy)
 npm run film check <name>         # HyperFrames lint
@@ -62,11 +81,12 @@ port 3002; change its `outputs/<name>` argument to preview another film.
 
 ## Making a film, step by step
 
-1. **Script** in `story/story.json`: about 2.9 words per second at speed 1.0 (≈340 words for two
-   minutes). Follow the template in `analysis/ANALYSIS.md`: rule hook in 4 s, list of examples,
+1. **Script** in `story/story.json`: 2–3 minutes by default. For English, about 2.9 words per second
+   (≈350–520 words); for Khmer, time a test line with the clone and size the script to fit. Follow the template in `analysis/ANALYSIS.md`: rule hook in 4 s, list of examples,
    "my name is…", turn at 40–60 %, twists at 60–90 %, cliffhanger or reversal at the end.
 2. **Cuts**: each line starts a shot; add `cuts` words so the average shot is 1.6–2.1 s.
-3. `voice`, then `plan`. Read the printed shot count and average length.
+3. **Narration** with `/my-editor` (next section), then `plan`. Read the printed shot count and
+   average length, and check the narration lands between 2 and 3 minutes.
 4. **Stage** each cut id in `film.js`. Every shot gets a camera move (usually a slow push).
 5. `shots`, then **read the contact sheets** under `outputs/<name>/.hyperframes/artifacts/snapshots/`.
    Fix framing, blocked faces and blown-out light; repeat with the ids you changed.
@@ -74,18 +94,39 @@ port 3002; change its `outputs/<name>` argument to preview another film.
 
 ### story.json line fields
 
-| Field | Meaning |
-|---|---|
-| `id`, `text` | The line. Its cut id is `<id>`; the narration text is exactly `text`. |
-| `cuts: [word]` | Words that start further shots: `<id>.1`, `<id>.2`, … (searched in order). |
-| `big: [word]` | Caption words shown larger. |
-| `marks: {name: word}` | Named times for film code: `PLAN.marks.name` is the start of that word. |
-| `hits`, `pops`, `flash: [k]` | Sound hit, pop or white flash on cut `k` of the line (0 = line start). |
-| `sfx: [[type, at]]` | Extra sound: `at` is a word or a cut index; type `pop`, `tick`, `hit`, `rises`. |
-| `mood` | Music from this line on: `day`, `warm`, `dark`, `tense`. |
+| Field                        | Meaning                                                                         |
+| ---------------------------- | ------------------------------------------------------------------------------- |
+| `id`, `text`                 | The line. Its cut id is `<id>`; the narration text is exactly `text`.           |
+| `cuts: [word]`               | Words that start further shots: `<id>.1`, `<id>.2`, … (searched in order).      |
+| `big: [word]`                | Caption words shown larger.                                                     |
+| `marks: {name: word}`        | Named times for film code: `PLAN.marks.name` is the start of that word.         |
+| `hits`, `pops`, `flash: [k]` | Sound hit, pop or white flash on cut `k` of the line (0 = line start).          |
+| `sfx: [[type, at]]`          | Extra sound: `at` is a word or a cut index; type `pop`, `tick`, `hit`, `rises`. |
+| `mood`                       | Music from this line on: `day`, `warm`, `dark`, `tense`.                        |
 
 Top level: `title`, `names` (words captions keep capitalised), `voice` (model, speed, stability,
 similarity, style), optional `voiceId`. A `tail` shot is added automatically after the narration.
+Add `"lang": "en"` or `"lang": "km"` to pick the narration voice (English is the default).
+
+## Narration with /my-editor
+
+Load the `/my-editor` skill and follow its voice-cloning workflow, with these project rules:
+
+- **Reference**: `voices/in-town.mp3` for English, `voices/ravuthz.mp3` for Khmer. Convert it to a
+  clean mono wav in the scratch folder as the skill describes; never write into `voices/`.
+- **One chunk per story line** (`story.lines[i].text`), same reference and settings for every
+  chunk, e.g. `python <my-editor>/scripts/tts.py --text "<line>" --ref <ref.wav> --out <tmp>/NNN.wav`.
+  For Khmer, the skill's `khmer_numbers.py` spells numbers for the TTS only; captions keep `text`.
+- Clean, level and join the chunks as in the skill (per-chunk gain, then one `loudnorm`), and write
+  `outputs/<film>/assets/audio/vo.mp3`. Keep work files out of the film folder.
+- **Timings**: `plan` and the captions read `outputs/<film>/story/timing.js`, which must keep the
+  format `tts.mjs` writes:
+  `window.STORY_TIMING = {duration, lines: [{id, start, end, big}], words: [{w, s, e, line}]};`
+  Line start and end come from each chunk's offset and length in the joined track. Split each line
+  into words on whitespace, exactly as in `text`, and spread them across the line in proportion to
+  their character length, unless a better word alignment is available.
+- Report which VoxCPM2 service was used, as the skill asks, and the final narration length.
+- Khmer captions need a Khmer-capable font; Fredoka has no Khmer glyphs.
 
 ## Engine reference (`core/engine/stage.js`)
 
