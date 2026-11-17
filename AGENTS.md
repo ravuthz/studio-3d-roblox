@@ -109,11 +109,11 @@ createFilm({
   `room` (Zero's bedroom; use `R(x, y, z)`), `forest` (crater clearing; use `F(x, y, z)`).
 - **Moods** (second word): `day`, `dusk`, `night`, `red`, `nightred`, `green`.
   Override inside a shot with `setEnv(night, green, red)`.
-- **Actors**: `A.zero`, `A.zeebra`, `A.luna`, `A.zip`, plus the film's cast; `crowd[0..13]`.
+- **Actors**: `A.zero`, `A.zeebra`, `A.luna`, `A.zip`, `A.mayor`, plus the film's cast; `crowd[0..13]`.
   `put(a, x, z, ry, clip, time, face, y = 0, size = 1)` or `a.place().pose(clipA, tA, clipB, weightB).face()`.
   `a.number(text, color, scale)` shows a badge above the head.
 - **Clips**: Idle, Walk, Run, Talk, Wave, Shock (one-shot), Cheer, Sad, Point, LookUp, Sit, HandsUp,
-  Reach, Shiver, Eat, Block. **Faces**: neutral, happy, shock, sad, smug, angry.
+  Reach, Shiver, Eat, Block. **Faces**: neutral, happy, shock, sad, smug, angry, sleep.
   Face options: `blush`, `lashes`, `mustache`, `brow`, `alien`. **Hair**: Zero, Zeebra, Luna, Zip, Zark, Mayor.
 - **Camera**: `cam(t, fromPos, fromTarget, toPos, toTarget, ease(u), shake = 0, fov = 55)`.
   Focus, shadows and the night fill light follow the target. Eases: `smooth`, `easeOut`, `backOut`.

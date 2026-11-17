@@ -190,6 +190,10 @@ function drawFace(g, expr, o) {
     eye(lx, ey + 2, 14, 17); eye(rx, ey + 2, 14, 17);
     line([[lx - 22, ey - 44], [lx + 18, ey - 24]], 10, brow); line([[rx - 18, ey - 24], [rx + 22, ey - 44]], 10, brow);
     teeth(o.mustache ? 190 : 178);
+  } else if (expr === "sleep") { // closed eyes, small relaxed mouth
+    arc(lx, ey - 6, 15, Math.PI * 0.15, Math.PI * 0.85, 7); arc(rx, ey - 6, 15, Math.PI * 0.15, Math.PI * 0.85, 7);
+    line([[lx - 18, ey - 36], [lx + 16, ey - 38]], 6, brow); line([[rx - 16, ey - 38], [rx + 18, ey - 36]], 6, brow);
+    g.fillStyle = "#3a1220"; g.beginPath(); g.ellipse(128, 186, 8, 6, 0, 0, Math.PI * 2); g.fill();
   } else {
     eye(lx, ey, 14, 21); eye(rx, ey, 14, 21);
     line([[lx - 18, ey - 42], [lx + 16, ey - 44]], 7, brow); line([[rx - 16, ey - 44], [rx + 18, ey - 42]], 7, brow);
@@ -203,7 +207,7 @@ function drawFace(g, expr, o) {
     g.beginPath(); g.ellipse(106, 166, 26, 11, -0.2, 0, Math.PI * 2); g.ellipse(150, 166, 26, 11, 0.2, 0, Math.PI * 2); g.fill();
   }
 }
-const EXPRS = ["neutral", "happy", "shock", "sad", "smug", "angry"];
+const EXPRS = ["neutral", "happy", "shock", "sad", "smug", "angry", "sleep"];
 const faceSet = (o) => Object.fromEntries(EXPRS.map((e) => [e, canvasTex(256, 256, (g) => drawFace(g, e, o))]));
 
 const CHESTS = {
@@ -281,6 +285,9 @@ const CAST = {
     col: { Skin: "#f6d3b0", Shirt: "#2c3e7a", Pants: "#6b4fa0", Shoes: "#f4f4f4", Hair: "#5b3a8c", Acc: "#ffd23c" } },
   zip: { hair: "Zip", scale: 1.1, chest: "zipper", face: { mustache: "#6b4226", brow: "#6b4226" },
     col: { Skin: "#e9bd92", Shirt: "#f2b632", Pants: "#3a4a6b", Shoes: "#5a3b28", Hair: "#6b4226", Acc: "#2b6cb0", HairStreak: "#ffffff" } },
+  // the town's mayor: not family, but shared by every film that needs him
+  mayor: { hair: "Mayor", scale: 1.08, chest: "sash", face: { mustache: "#8a8a92", brow: "#55555e" },
+    col: { Skin: "#e9bd92", Shirt: "#5b3a8c", Pants: "#2b2b33", Shoes: "#17171c", Hair: "#1b1b22", HairStreak: "#8a8a92", Acc: "#d8463f" } },
 };
 const CROWD_N = 14;
 const PALETTE = ["#e76f51", "#2a9d8f", "#e9c46a", "#8ab17d", "#577590", "#f28482", "#84a59d", "#b56576", "#6d597a", "#f4a261"];
