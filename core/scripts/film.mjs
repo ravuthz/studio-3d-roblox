@@ -2,13 +2,14 @@
 // One entry point for working on a film.   node core/scripts/film.mjs <command> <film>
 //
 //   new <film> ["Title"]  scaffold outputs/<film>/ from core/template
-//   voice <film>          ElevenLabs narration + word timings (cached; spends credits on text changes)
+//   narrate <film>        /my-editor voice-clone narration + word timings (cached per line)
+//   voice <film>          legacy ElevenLabs narration + word timings (spends credits on text changes)
 //   plan <film>           cut times, sound events and durations from the timings
 //   audio <film>          synthesise music and sound effects
 //   check <film>          HyperFrames lint
 //   shots <film> [ids]    snapshot the middle frame of every shot (or of the listed cut ids)
 //   render <film>         render outputs/<film>/renders/<film>.mp4
-//   build <film>          voice, plan, audio, check and render in order
+//   build <film>          narrate (or voice), plan, audio, check and render in order
 //   assets                rebuild the shared GLB assets with Blender
 import { spawnSync } from "node:child_process";
 import { cpSync, existsSync, lstatSync, mkdirSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
@@ -50,6 +51,12 @@ const steps = {
     console.log(`Created ${dir}\nNext: edit story/story.json and film.js, then run: npm run film build ${basename(dir)}`);
   },
   voice() { run("node", ["--env-file=.env.local", "core/scripts/tts.mjs", name]); },
+  narrate() {
+    // needs numpy, gradio_client and faster_whisper: use $NARRATE_PYTHON, or the first interpreter that has them
+    const py = process.env.NARRATE_PYTHON || [PYTHON, "python3", "/opt/homebrew/opt/python@3.11/bin/python3.11", "/opt/homebrew/bin/python3"]
+      .find((p) => spawnSync(p, ["-c", "import numpy, gradio_client, faster_whisper"], { stdio: "ignore" }).status === 0) || "python3";
+    run(py, ["core/scripts/narrate.py", name, ...rest]);
+  },
   plan() { run("node", ["core/scripts/plan.mjs", name]); },
   audio() { run(PYTHON, ["core/scripts/audio.py", name]); },
   check() { const dir = filmDir(name); link(dir); run("npx", [...HF, "lint"], { cwd: dir }); },
@@ -67,13 +74,18 @@ const steps = {
   render() {
     const dir = filmDir(name); link(dir);
     mkdirSync(join(dir, "renders"), { recursive: true });
-    run("npx", [...HF, "render", "--quality", "looks", "-o", `renders/${basename(dir)}.mp4`], { cwd: dir });
+    // extra flags pass through, e.g. `npm run film -- render <film> --workers 1` when disk space is short
+    run("npx", [...HF, "render", "--quality", "looks", "-o", `renders/${basename(dir)}.mp4`, ...rest], { cwd: dir });
   },
-  build() { for (const s of ["voice", "plan", "audio", "check", "render"]) steps[s](); },
+  build() {
+    // films with a "lang" in story.json use the /my-editor voice clone; older films keep ElevenLabs
+    const story = JSON.parse(readFileSync(join(filmDir(name), "story/story.json"), "utf8"));
+    for (const s of [story.lang ? "narrate" : "voice", "plan", "audio", "check", "render"]) steps[s]();
+  },
   assets() { run(BLENDER, ["-b", "--factory-startup", "-P", "core/blender/build_assets.py", "--", "core/assets"]); },
 };
 if (!steps[cmd]) {
-  console.log(readFileSync(new URL(import.meta.url), "utf8").split("\n").slice(1, 12).map((l) => l.replace(/^\/\/ ?/, "")).join("\n"));
+  console.log(readFileSync(new URL(import.meta.url), "utf8").split("\n").slice(1, 13).map((l) => l.replace(/^\/\/ ?/, "")).join("\n"));
   process.exit(cmd ? 1 : 0);
 }
 try { steps[cmd](); } catch (e) { console.error(`✗ ${e.message}`); process.exit(1); }

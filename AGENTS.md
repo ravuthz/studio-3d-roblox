@@ -28,7 +28,7 @@ core/                 shared by every film — change here only what all films s
   assets/                   character.glb, town.glb, sets.glb
   engine/stage.js           renderer, post-processing, cast, crowd, props, cameras, createFilm()
   engine/captions.js        one-word captions and flashes from the word timings
-  scripts/                  film.mjs (CLI), tts.mjs, plan.mjs, audio.py
+  scripts/                  film.mjs (CLI), narrate.py, tts.mjs (legacy), plan.mjs, audio.py
   template/                 files a new film starts from
   vendor/                   three.js, gsap, Fredoka font (no CDN at render time)
 outputs/<film>/       one folder per film — only what is specific to that film
@@ -38,6 +38,7 @@ outputs/<film>/       one folder per film — only what is specific to that film
   core -> ../../core        symlink so the page can load the shared engine and assets
   story/timing.js, plan.js, plan.json, alignment.json   generated
   assets/audio/vo.mp3, music.wav, sfx.wav                generated
+  .cache/vo/                                             narration chunks (generated)
   renders/<film>.mp4                                      generated
 analysis/             notes and scripts from studying ten reference shorts (ANALYSIS.md)
 voices/               narration references for /my-editor: in-town.mp3 (English), ravuthz.mp3 (Khmer)
@@ -66,13 +67,14 @@ elevenlabs.js         ElevenLabs client (legacy narration); key and ELEVENLABS_V
 
 ```bash
 npm run film new <name> "Title"   # scaffold outputs/<name>/
-npm run film voice <name>         # LEGACY ElevenLabs narration; new films use /my-editor (see below)
+npm run film narrate <name>       # /my-editor voice-clone narration + word timings (cached per line)
+npm run film voice <name>         # LEGACY ElevenLabs narration for older films
 npm run film plan <name>          # cut times, sound events, durations
 npm run film audio <name>         # synthesised music and effects (needs python with numpy)
 npm run film check <name>         # HyperFrames lint
 npm run film shots <name> [ids]   # snapshot the middle frame of every shot, or of the listed cut ids
 npm run film render <name>        # outputs/<name>/renders/<name>.mp4
-npm run film build <name>         # voice → plan → audio → check → render
+npm run film build <name>         # narrate (voice for films without "lang") → plan → audio → check → render
 npm run film assets               # rebuild core/assets with Blender (after editing build_assets.py)
 ```
 
@@ -85,7 +87,7 @@ port 3002; change its `outputs/<name>` argument to preview another film.
    (≈350–520 words); for Khmer, time a test line with the clone and size the script to fit. Follow the template in `analysis/ANALYSIS.md`: rule hook in 4 s, list of examples,
    "my name is…", turn at 40–60 %, twists at 60–90 %, cliffhanger or reversal at the end.
 2. **Cuts**: each line starts a shot; add `cuts` words so the average shot is 1.6–2.1 s.
-3. **Narration** with `/my-editor` (next section), then `plan`. Read the printed shot count and
+3. `narrate` (next section), then `plan`. Read the printed shot count and
    average length, and check the narration lands between 2 and 3 minutes.
 4. **Stage** each cut id in `film.js`. Every shot gets a camera move (usually a slow push).
 5. `shots`, then **read the contact sheets** under `outputs/<name>/.hyperframes/artifacts/snapshots/`.
@@ -110,22 +112,24 @@ Add `"lang": "en"` or `"lang": "km"` to pick the narration voice (English is the
 
 ## Narration with /my-editor
 
-Load the `/my-editor` skill and follow its voice-cloning workflow, with these project rules:
+`npm run film narrate <name>` (`core/scripts/narrate.py`) runs the `/my-editor` voice-clone
+workflow for the whole film:
 
-- **Reference**: `voices/in-town.mp3` for English, `voices/ravuthz.mp3` for Khmer. Convert it to a
-  clean mono wav in the scratch folder as the skill describes; never write into `voices/`.
-- **One chunk per story line** (`story.lines[i].text`), same reference and settings for every
-  chunk, e.g. `python <my-editor>/scripts/tts.py --text "<line>" --ref <ref.wav> --out <tmp>/NNN.wav`.
-  For Khmer, the skill's `khmer_numbers.py` spells numbers for the TTS only; captions keep `text`.
-- Clean, level and join the chunks as in the skill (per-chunk gain, then one `loudnorm`), and write
-  `outputs/<film>/assets/audio/vo.mp3`. Keep work files out of the film folder.
-- **Timings**: `plan` and the captions read `outputs/<film>/story/timing.js`, which must keep the
-  format `tts.mjs` writes:
-  `window.STORY_TIMING = {duration, lines: [{id, start, end, big}], words: [{w, s, e, line}]};`
-  Line start and end come from each chunk's offset and length in the joined track. Split each line
-  into words on whitespace, exactly as in `text`, and spread them across the line in proportion to
-  their character length, unless a better word alignment is available.
-- Report which VoxCPM2 service was used, as the skill asks, and the final narration length.
+- **Reference**: `voices/in-town.mp3` for English (`"lang": "en"`, the default), `voices/ravuthz.mp3`
+  for Khmer (`"lang": "km"`). The reference is cleaned into a temp file; `voices/` is never written.
+- **One chunk per story line**, synthesised with `<my-editor>/scripts/tts.py --ref ...` (VoxCPM2
+  with its three-service fallback). Chunks are cached in `outputs/<film>/.cache/vo/` by line text,
+  so changing one line only regenerates that line. `--redo id,id` forces chosen lines again.
+  Khmer numbers are spelled out for the TTS only; captions keep `text`.
+- Chunks are joined with 0.3 s pauses (0.55 s before a `mood` change), levelled with one `loudnorm`,
+  and written to `assets/audio/vo.mp3`.
+- **Timings**: word times come from local faster-whisper (`small.en`) aligned to the script words;
+  words it misses, and all Khmer words, are spread over the gap by character length. The result is
+  `story/timing.js` in the format `plan` and the captions read.
+- It needs a Python with `numpy`, `gradio_client` and `faster_whisper` (set `NARRATE_PYTHON` if the
+  CLI does not find one). It prints the services used and any line whisper heard differently.
+- After it finishes, listen for lines that sound different (a fallback service can change the
+  voice) and regenerate them with `--redo`.
 - Khmer captions need a Khmer-capable font; Fredoka has no Khmer glyphs.
 
 ## Engine reference (`core/engine/stage.js`)
