@@ -83,6 +83,7 @@ export const api = {
     request<Job>(`/api/films/${name}/run`, { method: "POST", body: JSON.stringify({ step, args }) }),
   jobs: (film?: string) => request<Job[]>(`/api/jobs${film ? `?film=${film}` : ""}`),
   stop: (id: string) => request<Job>(`/api/jobs/${id}/stop`, { method: "POST" }),
+  openOutputs: () => request<{ opened: string }>("/api/open", { method: "POST" }),
 }
 
 export const media = (film: string, path: string) =>

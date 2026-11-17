@@ -1,4 +1,5 @@
-import { Clapperboard, LayoutDashboard, Loader2, Plus } from "lucide-react"
+import { Clapperboard, FolderOpen, LayoutDashboard, Loader2, Plus } from "lucide-react"
+import { toast } from "sonner"
 
 import { NewFilmDialog } from "@/components/new-film-dialog"
 import {
@@ -17,7 +18,7 @@ import {
   SidebarMenuSkeleton,
   SidebarRail,
 } from "@/components/ui/sidebar"
-import { fmtTime, type FilmSummary } from "@/lib/api"
+import { api, fmtTime, type FilmSummary } from "@/lib/api"
 import type { Route } from "@/lib/route"
 
 export function AppSidebar({ films, route, onCreated }: { films: FilmSummary[] | null; route: Route; onCreated: () => void }) {
@@ -95,8 +96,22 @@ export function AppSidebar({ films, route, onCreated }: { films: FilmSummary[] |
         </SidebarGroup>
       </SidebarContent>
 
-      <SidebarFooter className="px-4 pb-3 text-xs text-muted-foreground group-data-[collapsible=icon]:hidden">
-        Films live in <code className="font-mono">outputs/</code>
+      <SidebarFooter>
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              size="sm"
+              tooltip="Open outputs/ folder"
+              className="text-xs text-muted-foreground"
+              onClick={() => api.openOutputs().catch((e) => toast.error(e.message))}
+            >
+              <FolderOpen />
+              <span className="truncate">
+                Films live in <code className="font-mono text-foreground">outputs/</code>
+              </span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
       </SidebarFooter>
       <SidebarRail />
     </Sidebar>

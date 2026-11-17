@@ -1,4 +1,5 @@
-import { Clapperboard, Film, Plus, Scissors, Timer } from "lucide-react"
+import { Clapperboard, Film, Grid2x2, Grid3x3, Plus, Scissors, Timer } from "lucide-react"
+import { useState } from "react"
 
 import { NewFilmDialog } from "@/components/new-film-dialog"
 import { LengthBadge, StateIcon } from "@/components/status"
@@ -6,7 +7,33 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { fmtAgo, fmtTime, media, pipeline, type FilmSummary } from "@/lib/api"
+import { cn } from "@/lib/utils"
+
+type PerRow = "4" | "8"
+const PER_ROW_KEY = "film-studio-per-row"
+
+/** Cards per row on laptop screens and up (lg); remembered per browser. */
+function usePerRow() {
+  const [perRow, setPerRow] = useState<PerRow>(() => {
+    try {
+      return localStorage.getItem(PER_ROW_KEY) === "8" ? "8" : "4"
+    } catch {
+      return "4"
+    }
+  })
+  const choose = (v: string) => {
+    if (v !== "4" && v !== "8") return // clicking the active item deselects it: keep the current choice
+    setPerRow(v)
+    try {
+      localStorage.setItem(PER_ROW_KEY, v)
+    } catch {
+      // storage blocked: the choice lasts for this visit only
+    }
+  }
+  return [perRow, choose] as const
+}
 
 function Stat({ icon: Icon, label, value, hint }: { icon: typeof Film; label: string; value: string; hint: string }) {
   return (
@@ -23,7 +50,7 @@ function Stat({ icon: Icon, label, value, hint }: { icon: typeof Film; label: st
   )
 }
 
-function FilmCard({ film }: { film: FilmSummary }) {
+function FilmCard({ film, dense }: { film: FilmSummary; dense: boolean }) {
   const p = pipeline(film)
   const stages = Object.entries(p) as [keyof typeof p, (typeof p)[keyof typeof p]][]
   return (
@@ -42,26 +69,26 @@ function FilmCard({ film }: { film: FilmSummary }) {
               <Clapperboard className="size-8" />
             </div>
           )}
-          <Badge className="absolute top-2 left-2 border-transparent bg-black/70 font-mono text-white uppercase">
+          <Badge className={cn("absolute top-2 left-2 border-transparent bg-black/70 font-mono text-white uppercase", dense && "lg:hidden")}>
             {film.lang ?? "en · 11labs"}
           </Badge>
-          <Badge className="absolute right-2 bottom-2 bg-black/70 font-mono text-white tabular-nums">
+          <Badge className={cn("absolute right-2 bottom-2 bg-black/70 font-mono text-white tabular-nums", dense && "lg:right-1.5 lg:bottom-1.5 lg:h-4 lg:px-1.5 lg:text-[10px]")}>
             {fmtTime(film.voEnd)}
           </Badge>
         </div>
-        <div className="grid gap-2 p-4">
-          <div className="font-mono text-xs text-muted-foreground">{film.name}</div>
-          <div className="line-clamp-2 leading-snug font-medium">{film.title}</div>
-          <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+        <div className={cn("grid gap-2 p-4", dense && "lg:gap-1 lg:p-2.5")}>
+          <div className={cn("font-mono text-xs text-muted-foreground", dense && "lg:truncate lg:text-[11px]")}>{film.name}</div>
+          <div className={cn("line-clamp-2 leading-snug font-medium", dense && "lg:text-xs")}>{film.title}</div>
+          <div className={cn("mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground", dense && "lg:hidden")}>
             <span>{film.shots} shots</span>
             <span>{film.avgShot ? `${film.avgShot.toFixed(2)} s avg` : "—"}</span>
             <LengthBadge voEnd={film.voEnd} />
           </div>
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1 pt-1" title="narrate · plan · audio · shots · render">
             {stages.map(([k, s]) => (
-              <span key={k} className="flex items-center gap-1 text-[11px] text-muted-foreground">
+              <span key={k} title={k} className="flex items-center gap-1 text-[11px] text-muted-foreground">
                 <StateIcon state={s} className="size-3.5" />
-                {k}
+                <span className={cn(dense && "lg:sr-only")}>{k}</span>
               </span>
             ))}
           </div>
@@ -78,6 +105,8 @@ export function Dashboard({ films, onCreated }: { films: FilmSummary[] | null; o
   const rendered = list.filter((f) => f.files.render).length
   const stale = list.filter((f) => pipeline(f).render === "stale").length
   const latest = Math.max(0, ...list.map((f) => f.files.render ?? 0))
+  const [perRow, setPerRow] = usePerRow()
+  const dense = perRow === "8"
 
   return (
     <div className="mx-auto grid w-full max-w-7xl grid-cols-1 gap-6 p-4 md:p-6">
@@ -88,11 +117,28 @@ export function Dashboard({ films, onCreated }: { films: FilmSummary[] | null; o
             Vertical 9:16 shorts, 2–3 minutes, narrated in a cloned voice.
           </p>
         </div>
-        <NewFilmDialog onCreated={onCreated}>
-          <Button>
-            <Plus /> New film
-          </Button>
-        </NewFilmDialog>
+        <div className="flex items-center gap-2">
+          <ToggleGroup
+            type="single"
+            variant="outline"
+            value={perRow}
+            onValueChange={setPerRow}
+            aria-label="Films per row"
+            className="hidden lg:flex"
+          >
+            <ToggleGroupItem value="4" aria-label="4 films per row" title="4 per row">
+              <Grid2x2 /> 4
+            </ToggleGroupItem>
+            <ToggleGroupItem value="8" aria-label="8 films per row" title="8 per row">
+              <Grid3x3 /> 8
+            </ToggleGroupItem>
+          </ToggleGroup>
+          <NewFilmDialog onCreated={onCreated}>
+            <Button>
+              <Plus /> New film
+            </Button>
+          </NewFilmDialog>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
@@ -108,9 +154,9 @@ export function Dashboard({ films, onCreated }: { films: FilmSummary[] | null; o
         )}
       </div>
 
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-4">
+      <div className={cn("grid grid-cols-2 gap-4 md:grid-cols-3", dense ? "lg:grid-cols-8 lg:gap-3" : "lg:grid-cols-4")}>
         {films
-          ? list.map((f) => <FilmCard key={f.name} film={f} />)
+          ? list.map((f) => <FilmCard key={f.name} film={f} dense={dense} />)
           : Array.from({ length: 8 }, (_, i) => <Skeleton key={i} className="aspect-[9/16] rounded-xl" />)}
       </div>
     </div>

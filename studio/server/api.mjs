@@ -207,6 +207,17 @@ export async function handler(req, res, next) {
       return send(res, 202, publicJob(startJob(film, step, args)));
     }
 
+    // open the outputs/ folder in the system file manager (the server only listens on 127.0.0.1)
+    if (p === "/api/open" && req.method === "POST") {
+      const [bin, args] = process.platform === "darwin" ? ["open", [OUTPUTS]]
+        : process.platform === "win32" ? ["explorer", [OUTPUTS]]
+        : ["xdg-open", [OUTPUTS]];
+      const child = spawn(bin, args, { detached: true, stdio: "ignore" });
+      child.on("error", () => {});
+      child.unref();
+      return send(res, 200, { opened: OUTPUTS });
+    }
+
     if (p === "/api/jobs" && req.method === "GET") {
       const film = url.searchParams.get("film");
       return send(res, 200, [...jobs.values()].filter((j) => !film || j.film === film).map(publicJob).reverse());
