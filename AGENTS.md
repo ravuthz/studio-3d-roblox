@@ -26,7 +26,8 @@ in a cloned voice from `voices/`, Three.js stages every shot, HyperFrames compos
 core/                 shared by every film — change here only what all films should get
   blender/build_assets.py   rig, hair, clips, town, extra sets and props → core/assets/*.glb
   assets/                   character.glb, town.glb, sets.glb
-  engine/stage.js           renderer, post-processing, cast, crowd, props, cameras, createFilm()
+  engine/stage.js           renderer, lights, film grade, cast and clothing, crowd, props, cameras, createFilm()
+  engine/textures.js        procedural surface textures (brick, asphalt, wood, fabric…) and printed cloth
   engine/captions.js        one-word captions and flashes from the word timings
   scripts/                  film.mjs (CLI), narrate.py, tts.mjs (legacy), plan.mjs, audio.py
   template/                 files a new film starts from
@@ -138,7 +139,7 @@ workflow for the whole film:
 import { createFilm, A, crowd, put, cam, v3, ... } from "core/stage.js";
 createFilm({
   id: "my-film",
-  cast: { name: { hair, scale, chest, face, glow, col } },  // added to the family
+  cast: { name: { hair, scale, chest, face, glow, col, fit, cloth } },  // added to the family
   chests: { name: (g) => {} },                              // 256×256 chest decals
   board: (g, w, h) => {},                                   // tower screen, 512×1024
   setup() {},                                               // build film-only textures once loaded
@@ -160,6 +161,20 @@ createFilm({
 - **Clips**: Idle, Walk, Run, Talk, Wave, Shock (one-shot), Cheer, Sad, Point, LookUp, Sit, HandsUp,
   Reach, Shiver, Eat, Block. **Faces**: neutral, happy, shock, sad, smug, angry, sleep.
   Face options: `blush`, `lashes`, `mustache`, `brow`, `alien`. **Hair**: Zero, Zeebra, Luna, Zip, Zark, Mayor.
+- **Clothing**: `fit: [...]` picks the pieces a character wears: sleeves `Short` or `Long` (cuffs),
+  `Shorts`, neck `Crew` / `Collar` / `Scarf`, body `Hood` / `Jacket` / `Tie` / `Belt` / `Pack`, and `Skirt`.
+  `cloth: { Shirt | Pants | Skirt: "stripes" | ["plaid", "#second"] }` prints a pattern (stripes, pinstripe,
+  plaid, dots, checks, camo). Extra `col` keys: `Trim` (collar and cuffs), `Sleeve`, `Forearm`, `Shin`, `Belt`,
+  `Sole`, `Inner`, `Skirt`, `Pack`; unset ones are derived from Shirt, Pants and Skin. A cast entry with no
+  `fit` keeps plain long sleeves. Chest prints and faces are drawn in a 256 space (stored at 512).
+- **Look**: every frame gets a warm key with shadows, a cool sky fill, a rim light behind the subject
+  (placed from the camera), reflections from a studio sky, lamp pools and a bedside lamp at night, a sky
+  with sun glow, moon and drifting clouds, then depth of field, bloom and the film grade (contrast curve,
+  cool shadows / warm highlights, vignette, lens fringing, grain). `grade.uniforms` (`contrast`, `split`,
+  `grain`, `fringe`, `sat`, `vig`), `sun`, `hemi`, `rim`, `fill` and `bloom` are exported for a film that
+  needs its own look; set them inside the shot, after `setEnv`.
+- **Textures**: set and prop materials are textured by glTF material name in `textures.js` (`SURFACES`).
+  GLB meshes carry box-projected UVs in studs, so a new Blender material only needs a line there.
 - **Camera**: `cam(t, fromPos, fromTarget, toPos, toTarget, ease(u), shake = 0, fov = 55)`.
   Focus, shadows and the night fill light follow the target. Eases: `smooth`, `easeOut`, `backOut`.
 - **Crowd**: `crowdWalk(t, {count, behind, face})`, `crowdRun(t, d, {dir, z0, gap, speed, face})`,
@@ -179,3 +194,8 @@ createFilm({
 - Crowd members walk through marks; pass `behind: z` to keep the lens side of a hero clear.
 - Light cones look bad from above or from inside; use them for a single beam seen from the side.
 - Check the last frame before and the first frame after a cut when a prop appears at a cut.
+- In Blender, build each primitive in its own bmesh and merge it (`Builder._merge`). Bevelling inside the
+  shared mesh replaced faces and they fell back to the mesh's first material (white hands, dark shoe tops).
+- The bedside lamp and the lamp pools add to a film's own lights; white hair and shirts clip first, so
+  look at night close-ups in the room after changing light levels.
+- Chest prints sit at y = −0.566 in front of the torso; clothing pieces must stay behind that.

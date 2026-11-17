@@ -69,36 +69,41 @@ class Builder:
             self.mats.append(m)
         return self.mats.index(m)
 
-    def box(self, size, center, m, bevel=0.0, seg=2, rot_z=0.0, rot_x=0.0):
-        r = bmesh.ops.create_cube(self.bm, size=1.0)
-        verts = r["verts"]
-        bmesh.ops.scale(self.bm, vec=Vector(size), verts=verts)
-        faces = {f for v in verts for f in v.link_faces}
-        if bevel > 0:
-            edges = list({e for v in verts for e in v.link_edges})
-            res = bmesh.ops.bevel(self.bm, geom=edges, offset=bevel, segments=seg,
-                                  profile=0.5, affect="EDGES")
-            faces |= set(res["faces"])
-            faces = {f for f in faces if f.is_valid}
-            verts = list({v for f in faces for v in f.verts})
-        rot = Matrix.Rotation(rot_z, 4, "Z") @ Matrix.Rotation(rot_x, 4, "X")
-        bmesh.ops.transform(self.bm, matrix=Matrix.Translation(Vector(center)) @ rot,
-                            verts=verts)
+    def _merge(self, tb, m):
+        """Copy a finished primitive into the mesh: one material, smooth faces and
+        box-projected UVs in studs (1 UV unit = 1 stud), so tiling textures line up
+        across neighbouring boxes."""
+        tb.normal_update()
         mi = self._mi(m)
-        for f in faces:
-            f.material_index = mi
-            f.smooth = True
-        return verts
+        vmap = {v: self.bm.verts.new(v.co) for v in tb.verts}
+        for f in tb.faces:
+            nf = self.bm.faces.new([vmap[v] for v in f.verts])
+            nf.material_index = mi
+            nf.smooth = True
+            n = f.normal
+            ax = max(range(3), key=lambda i: abs(n[i]))
+            for loop, src in zip(nf.loops, f.verts):
+                c = src.co
+                loop[self.uv].uv = (c.x, c.y) if ax == 2 else (c.y, c.z) if ax == 0 else (c.x, c.z)
+        tb.free()
+
+    def box(self, size, center, m, bevel=0.0, seg=2, rot_z=0.0, rot_x=0.0, rot_y=0.0):
+        tb = bmesh.new()
+        r = bmesh.ops.create_cube(tb, size=1.0)
+        bmesh.ops.scale(tb, vec=Vector(size), verts=r["verts"])
+        if bevel > 0:
+            bmesh.ops.bevel(tb, geom=list(tb.edges), offset=bevel, segments=seg,
+                            profile=0.5, affect="EDGES")
+        rot = Matrix.Rotation(rot_z, 4, "Z") @ Matrix.Rotation(rot_y, 4, "Y") @ Matrix.Rotation(rot_x, 4, "X")
+        bmesh.ops.transform(tb, matrix=Matrix.Translation(Vector(center)) @ rot, verts=list(tb.verts))
+        self._merge(tb, m)
 
     def blob(self, radius, center, m, scale=(1, 1, 1), sub=2):
-        r = bmesh.ops.create_icosphere(self.bm, subdivisions=sub, radius=radius)
-        verts = r["verts"]
-        bmesh.ops.scale(self.bm, vec=Vector(scale), verts=verts)
-        bmesh.ops.translate(self.bm, vec=Vector(center), verts=verts)
-        mi = self._mi(m)
-        for f in {f for v in verts for f in v.link_faces}:
-            f.material_index = mi
-            f.smooth = True
+        tb = bmesh.new()
+        r = bmesh.ops.create_icosphere(tb, subdivisions=sub, radius=radius)
+        bmesh.ops.scale(tb, vec=Vector(scale), verts=r["verts"])
+        bmesh.ops.translate(tb, vec=Vector(center), verts=r["verts"])
+        self._merge(tb, m)
 
     def quad(self, corners, m):
         """corners: bl, br, tr, tl; gets a 0..1 UV."""
@@ -175,6 +180,11 @@ def build_character():
     shoes, hair = mat("Shoes", "#f4f4f4"), mat("Hair", "#2a2440")
     hair2, acc = mat("HairStreak", "#ffffff"), mat("Acc", "#ffd23c")
     face, chest = mat("Face", "#ffffff"), mat("Chest", "#ffffff")
+    # clothing materials: the engine colours them per character (see makeActor in stage.js)
+    sleeve, forearm, cuff = mat("Sleeve", "#e9e9ee"), mat("Forearm", "#e9e9ee"), mat("Cuff", "#c9c9d2")
+    collar, belt, shin = mat("Collar", "#c9c9d2"), mat("Belt", "#2a2422"), mat("Shin", "#2f3a56")
+    hem, sole, inner = mat("PantsHem", "#262f46"), mat("Sole", "#f4f1ea"), mat("Inner", "#f4f1ea")
+    skirt, pack = mat("Skirt", "#6b4fa0"), mat("Pack", "#e76f51")
 
     def part(name, bone, fn):
         b = Builder("M_" + name)
@@ -187,21 +197,76 @@ def build_character():
         return ob
 
     part("Torso", "Torso", lambda b: b.box((2, 1, 2), (0, 0, 3), shirt, 0.09, 3))
+    # the chest decal floats in front of the thin clothing pieces (they reach y = -0.55)
     part("Chest", "Torso", lambda b: b.quad(
-        [(-0.92, -0.512, 2.08), (0.92, -0.512, 2.08), (0.92, -0.512, 3.92), (-0.92, -0.512, 3.92)], chest))
+        [(-0.92, -0.566, 2.08), (0.92, -0.566, 2.08), (0.92, -0.566, 3.92), (-0.92, -0.566, 3.92)], chest))
     part("Head", "Head", lambda b: b.box((1.3, 1.3, 1.2), (0, 0, 4.63), skin, 0.24, 4))
     part("Face", "Head", lambda b: b.quad(
         [(-0.6, -0.662, 4.03), (0.6, -0.662, 4.03), (0.6, -0.662, 5.23), (-0.6, -0.662, 5.23)], face))
     for side, x in (("L", 1.5), ("R", -1.5)):
         def arm(b, x=x):
-            b.box((0.96, 0.96, 1.45), (x, 0, 3.275), shirt, 0.09, 3)
+            b.box((0.96, 0.96, 0.82), (x, 0, 3.59), sleeve, 0.09, 3)
+            b.box((0.92, 0.92, 0.7), (x, 0, 2.88), forearm, 0.08, 3)
             b.box((0.9, 0.9, 0.6), (x, 0, 2.3), skin, 0.12, 3)
         part("Arm" + side, "Arm" + side, arm)
+        part("Fit_Long_Arm" + side, "Arm" + side,
+             lambda b, x=x: b.box((1.0, 1.0, 0.2), (x, 0, 2.66), cuff, 0.05, 2))
+        part("Fit_Short_Arm" + side, "Arm" + side,
+             lambda b, x=x: b.box((1.02, 1.02, 0.16), (x, 0, 3.24), cuff, 0.05, 2))
     for side, x in (("L", 0.5), ("R", -0.5)):
         def leg(b, x=x):
-            b.box((0.96, 0.96, 1.7), (x, 0, 1.2), pants, 0.07, 3)
-            b.box((1.0, 1.25, 0.42), (x, -0.12, 0.21), shoes, 0.1, 3)
+            b.box((0.96, 0.96, 0.92), (x, 0, 1.59), pants, 0.07, 3)
+            b.box((0.93, 0.93, 0.84), (x, 0, 0.75), shin, 0.06, 3)
+            b.box((1.0, 1.25, 0.34), (x, -0.12, 0.29), shoes, 0.1, 3)
+            b.box((1.05, 1.31, 0.14), (x, -0.12, 0.07), sole, 0.04, 2)
+            b.box((1.03, 0.32, 0.24), (x, -0.63, 0.24), sole, 0.08, 2)   # toe cap
+            b.box((0.5, 0.34, 0.05), (x, -0.42, 0.47), sole, 0.02, 1)    # laces
         part("Leg" + side, "Leg" + side, leg)
+        part("Fit_Shorts_Leg" + side, "Leg" + side,
+             lambda b, x=x: b.box((1.0, 1.0, 0.14), (x, 0, 1.17), hem, 0.04, 2))
+
+    # --- clothing pieces: M_Fit_<Tag>_*; a character shows the tags listed in its "fit"
+    def fit_crew(b):      # ribbed neckband
+        b.box((1.16, 1.07, 0.2), (0, 0, 3.91), collar, 0.05, 2)
+
+    def fit_collar(b):    # shirt collar: two flaps and a back band
+        for sx in (-1, 1):
+            b.box((0.52, 0.09, 0.36), (sx * 0.3, -0.535, 3.8), collar, 0.03, 2, rot_y=sx * 0.45)
+        b.box((1.2, 0.1, 0.3), (0, 0.52, 3.86), collar, 0.03, 2)
+
+    def fit_belt(b):
+        b.box((2.05, 1.05, 0.22), (0, 0, 2.12), belt, 0.04, 2)
+        b.box((0.36, 0.08, 0.26), (0, -0.55, 2.12), acc, 0.03, 2)
+
+    def fit_hood(b):      # hood on the back, front pocket, drawstrings
+        b.box((1.5, 0.46, 0.8), (0, 0.66, 3.62), shirt, 0.2, 3)
+        b.box((1.25, 0.08, 0.62), (0, -0.535, 2.6), cuff, 0.03, 2)
+        for sx in (-1, 1):
+            b.box((0.08, 0.06, 0.55), (sx * 0.24, -0.545, 3.55), sole, 0.02, 1)
+
+    def fit_jacket(b):    # open front: inner shirt strip and lapels
+        b.box((0.6, 0.07, 1.92), (0, -0.525, 3.0), inner, 0.02, 1)
+        for sx in (-1, 1):
+            b.box((0.34, 0.08, 0.9), (sx * 0.42, -0.545, 3.5), collar, 0.03, 2, rot_y=sx * 0.25)
+
+    def fit_tie(b):
+        b.box((0.3, 0.07, 0.24), (0, -0.56, 3.8), acc, 0.03, 2)
+        b.box((0.26, 0.06, 1.05), (0, -0.56, 3.2), acc, 0.03, 2)
+
+    def fit_scarf(b):
+        b.box((1.5, 1.16, 0.3), (0, 0, 3.93), acc, 0.12, 3)
+        b.box((0.42, 0.12, 0.85), (0.42, -0.58, 3.45), acc, 0.05, 2)
+
+    def fit_pack(b):      # backpack with front straps
+        b.box((1.5, 0.55, 1.6), (0, 0.79, 3.05), pack, 0.18, 3)
+        b.box((1.0, 0.14, 0.6), (0, 1.1, 2.7), acc, 0.05, 2)
+        for sx in (-1, 1):
+            b.box((0.24, 0.06, 1.94), (sx * 0.62, -0.53, 3.02), pack, 0.02, 1)
+
+    for tag, fn in (("Crew", fit_crew), ("Collar", fit_collar), ("Belt", fit_belt), ("Hood", fit_hood),
+                    ("Jacket", fit_jacket), ("Tie", fit_tie), ("Scarf", fit_scarf), ("Pack", fit_pack)):
+        part("Fit_%s_Torso" % tag, "Torso", fn)
+    part("Fit_Skirt_Hips", "Hips", lambda b: b.box((2.2, 1.3, 0.95), (0, 0, 1.66), skirt, 0.14, 3))
 
     # --- hair and accessories, one object per character, all on the Head bone
     def hair_zero(b):
