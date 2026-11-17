@@ -5,7 +5,8 @@
   "main": "index.js",
   "scripts": {
     "start": "node --env-file=.env.local elevenlabs.js",
-    "film": "node core/scripts/film.mjs"
+    "film": "node core/scripts/film.mjs",
+    "studio": "npm --prefix studio run dev"
   },
   "keywords": [],
   "author": "",

@@ -41,6 +41,8 @@ outputs/<film>/       one folder per film — only what is specific to that film
   assets/audio/vo.mp3, music.wav, sfx.wav                generated
   .cache/vo/                                             narration chunks (generated)
   renders/<film>.mp4                                      generated
+studio/               Film Studio web app (Vite + React + shadcn/ui, light and dark mode): browse films,
+                      read scripts, review snapshots, play renders and run pipeline steps with live logs
 analysis/             notes and scripts from studying ten reference shorts (ANALYSIS.md)
 voices/               narration references for /my-editor: in-town.mp3 (English), ravuthz.mp3 (Khmer)
 elevenlabs.js         ElevenLabs client (legacy narration); key and ELEVENLABS_VOICE_ID come from .env.local
@@ -77,7 +79,13 @@ npm run film shots <name> [ids]   # snapshot the middle frame of every shot, or 
 npm run film render <name>        # outputs/<name>/renders/<name>.mp4
 npm run film build <name>         # narrate (voice for films without "lang") → plan → audio → check → render
 npm run film assets               # rebuild core/assets with Blender (after editing build_assets.py)
+npm run studio                    # Film Studio web app on http://127.0.0.1:3100 (run `npm install` in studio/ once)
 ```
+
+The studio only calls `core/scripts/film.mjs`; it adds no pipeline logic of its own. Its API is
+`studio/server/api.mjs` (served by Vite in dev, by `studio/server/serve.mjs` after `npm run build`).
+It binds to 127.0.0.1 and serves only `renders/`, `assets/audio/` and snapshot folders of a film.
+UI components come from shadcn: add more with `npx shadcn@latest add <name>` inside `studio/`.
 
 Preview in the browser: the `film-preview` entry in `.claude/launch.json` serves one film on
 port 3002; change its `outputs/<name>` argument to preview another film.

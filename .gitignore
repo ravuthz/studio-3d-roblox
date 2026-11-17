@@ -13,3 +13,6 @@ analysis/preprocess.log
 # Films: everything under outputs/ is ignored (sources, audio and renders)
 outputs
 .DS_Store
+
+# Film Studio build output
+studio/dist/
