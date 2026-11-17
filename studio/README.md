@@ -36,5 +36,10 @@ requests so large renders seek.
 | `src/App.tsx` | sidebar layout, header, hash routes (`#/`, `#/film/<name>/<tab>`) |
 | `src/components/` | dashboard, film page, job console, dialogs, theme toggle |
 | `src/components/ui/` | shadcn components (generated; update with `npx shadcn@latest add`) |
+
+After `npx shadcn add`, check new files in `src/components/ui/` import Radix primitives from
+`radix-ui` (`import { Toggle } from "radix-ui"`). shadcn 4.23 wrote `toggle.tsx` and
+`toggle-group.tsx` importing `{ Toggle }` / `{ ToggleGroup }` from `@radix-ui/react-toggle*`, which
+type-checks but is `undefined` at runtime and blanks the whole page.
 | `src/lib/api.ts` | API types, fetchers, formatting, pipeline staleness rules |
 | `src/index.css` | shadcn theme tokens for light and dark, plus `brand`, `success`, `warning` |
