@@ -5,7 +5,7 @@ import { toast } from "sonner"
 import { JobBadge } from "@/components/status"
 import { Button } from "@/components/ui/button"
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { api, type Job } from "@/lib/api"
+import { api, jobLabel, type Job } from "@/lib/api"
 import { cn } from "@/lib/utils"
 
 /** Live log of one job, streamed over server-sent events. */
@@ -55,7 +55,7 @@ export function JobConsole({ job: initial, onEnd, className }: { job: Job; onEnd
       <CardHeader>
         <CardTitle className="flex items-center gap-2 font-mono text-sm">
           <Terminal className="size-4" />
-          film {job.step} {job.film} {job.args.join(" ")}
+          {jobLabel(job)}
         </CardTitle>
         <CardDescription className="flex items-center gap-2">
           <JobBadge status={job.status} />

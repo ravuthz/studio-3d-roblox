@@ -16,3 +16,8 @@ outputs
 
 # Film Studio build output
 studio/dist/
+
+# Film Studio local settings
+studio/.env
+studio/.env.*
+!studio/.env.example

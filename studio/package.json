@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "start": "node server/serve.mjs",
+    "start": "node --env-file-if-exists=.env server/serve.mjs",
     "lint": "eslint .",
     "typecheck": "tsc -b"
   },

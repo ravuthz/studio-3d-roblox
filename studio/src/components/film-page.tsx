@@ -351,7 +351,8 @@ function Runs({ film, jobs, selected, select, reload }: { film: FilmDetail; jobs
             )}
           >
             <span>
-              <span className="font-medium">{j.step}</span>
+              <span className="font-medium">{j.step === "write" ? `${j.agent} writes` : j.step}</span>
+              {j.model && <span className="block truncate font-mono text-xs text-muted-foreground">{j.model}</span>}
               {j.args.length > 0 && <span className="text-muted-foreground"> {j.args.length} ids</span>}
               <span className="block text-xs text-muted-foreground">{fmtAgo(j.startedAt)}</span>
             </span>

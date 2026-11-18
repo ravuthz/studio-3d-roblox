@@ -86,6 +86,8 @@ The studio only calls `core/scripts/film.mjs`; it adds no pipeline logic of its 
 `studio/server/api.mjs` (served by Vite in dev, by `studio/server/serve.mjs` after `npm run build`).
 It binds to 127.0.0.1 and serves only `renders/`, `assets/audio/` and snapshot folders of a film.
 UI components come from shadcn: add more with `npx shadcn@latest add <name>` inside `studio/`.
+"New film" in the studio can hand the new folder to an AI agent (`STUDIO_AGENTS`, default
+`agy,codex,claude`, set in `studio/.env`) that writes `story.json` and `film.js` only.
 
 Preview in the browser: the `film-preview` entry in `.claude/launch.json` serves one film on
 port 3002; change its `outputs/<name>` argument to preview another film.

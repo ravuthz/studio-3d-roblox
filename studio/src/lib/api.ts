@@ -55,10 +55,35 @@ export interface FilmDetail extends FilmSummary {
 
 export type Step = "narrate" | "voice" | "plan" | "audio" | "check" | "shots" | "render" | "build"
 
+export interface AgentModel {
+  id: string
+  label: string
+}
+
+export interface Agent {
+  name: string
+  installed: boolean
+  /** models the CLI lists (or STUDIO_MODELS_<AGENT>); empty means only the CLI default */
+  models: AgentModel[]
+}
+
+export interface NewFilm {
+  name: string
+  title: string
+  lang: "en" | "km"
+  agent: string | null
+  /** null = the agent CLI's own default model */
+  model: string | null
+  idea: string
+}
+
 export interface Job {
   id: string
   film: string
-  step: Step
+  /** pipeline step, or "write" when an AI agent writes the story */
+  step: Step | "write"
+  agent?: string
+  model?: string | null
   args: string[]
   status: "running" | "done" | "failed" | "stopped"
   code: number | null
@@ -77,8 +102,9 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
 export const api = {
   films: () => request<FilmSummary[]>("/api/films"),
   film: (name: string) => request<FilmDetail>(`/api/films/${name}`),
-  create: (name: string, title: string) =>
-    request<FilmSummary>("/api/films", { method: "POST", body: JSON.stringify({ name, title }) }),
+  agents: () => request<Agent[]>("/api/agents"),
+  create: (film: NewFilm) =>
+    request<{ film: FilmSummary; job: Job | null }>("/api/films", { method: "POST", body: JSON.stringify(film) }),
   run: (name: string, step: Step, args: string[] = []) =>
     request<Job>(`/api/films/${name}/run`, { method: "POST", body: JSON.stringify({ step, args }) }),
   jobs: (film?: string) => request<Job[]>(`/api/jobs${film ? `?film=${film}` : ""}`),
@@ -91,6 +117,10 @@ export const media = (film: string, path: string) =>
 
 export const renderUrl = (f: Pick<FilmSummary, "name" | "files">) =>
   f.files.render ? `${media(f.name, `renders/${f.name}.mp4`)}?v=${Math.round(f.files.render)}` : null
+
+/** what a job runs, as a command line */
+export const jobLabel = (j: Job) =>
+  j.step === "write" ? `${j.agent}${j.model ? ` (${j.model})` : ""} · write story and shots for ${j.film}` : `film ${j.step} ${j.film} ${j.args.join(" ")}`.trim()
 
 export function fmtTime(s: number | null | undefined) {
   if (s == null) return "—"

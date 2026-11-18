@@ -54,7 +54,7 @@ function FilmCard({ film, dense }: { film: FilmSummary; dense: boolean }) {
   const p = pipeline(film)
   const stages = Object.entries(p) as [keyof typeof p, (typeof p)[keyof typeof p]][]
   return (
-    <a href={`#/film/${film.name}`} className="group rounded-xl outline-none focus-visible:ring-3 focus-visible:ring-ring/50">
+    <a href={`#/film/${film.name}`} title={film.title} className="group rounded-xl outline-none focus-visible:ring-3 focus-visible:ring-ring/50">
       <Card className="h-full gap-0 overflow-hidden py-0 transition-shadow group-hover:shadow-md">
         <div className="relative aspect-[9/12] overflow-hidden bg-muted">
           {film.thumb ? (
@@ -69,7 +69,23 @@ function FilmCard({ film, dense }: { film: FilmSummary; dense: boolean }) {
               <Clapperboard className="size-8" />
             </div>
           )}
-          <Badge className={cn("absolute top-2 left-2 border-transparent bg-black/70 font-mono text-white uppercase", dense && "lg:hidden")}>
+          {/* title floats over the top of the picture on one line, and steps aside on hover so the frame shows */}
+          <div
+            className={cn(
+              "pointer-events-none absolute inset-x-0 top-0 bg-gradient-to-b from-black/75 via-black/40 to-transparent px-3 pt-2.5 pb-8 text-center transition-opacity duration-200 group-hover:opacity-0 group-focus-visible:opacity-0",
+              dense && "lg:px-2 lg:pt-1.5 lg:pb-5",
+            )}
+          >
+            <div
+              className={cn(
+                "truncate text-sm font-semibold text-white drop-shadow-[0_1px_2px_rgb(0_0_0/0.6)]",
+                dense && "lg:text-[11px]",
+              )}
+            >
+              {film.title}
+            </div>
+          </div>
+          <Badge className={cn("absolute bottom-2 left-2 border-transparent bg-black/70 font-mono text-white uppercase", dense && "lg:hidden")}>
             {film.lang ?? "en · 11labs"}
           </Badge>
           <Badge className={cn("absolute right-2 bottom-2 bg-black/70 font-mono text-white tabular-nums", dense && "lg:right-1.5 lg:bottom-1.5 lg:h-4 lg:px-1.5 lg:text-[10px]")}>
@@ -78,7 +94,6 @@ function FilmCard({ film, dense }: { film: FilmSummary; dense: boolean }) {
         </div>
         <div className={cn("grid gap-2 p-4", dense && "lg:gap-1 lg:p-2.5")}>
           <div className={cn("font-mono text-xs text-muted-foreground", dense && "lg:truncate lg:text-[11px]")}>{film.name}</div>
-          <div className={cn("line-clamp-2 leading-snug font-medium", dense && "lg:text-xs")}>{film.title}</div>
           <div className={cn("mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground", dense && "lg:hidden")}>
             <span>{film.shots} shots</span>
             <span>{film.avgShot ? `${film.avgShot.toFixed(2)} s avg` : "—"}</span>

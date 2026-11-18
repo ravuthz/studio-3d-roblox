@@ -21,7 +21,33 @@ npm run build && npm start   # production build served by server/serve.mjs (PORT
     words and mood changes.
   - **Shots**: the latest snapshot of every shot; click frames to pick them and re-shoot only those.
   - **Runs**: live logs of jobs (server-sent events), with Stop.
-- **New film**: same as `npm run film new <name> "Title"`.
+- **New film**: same as `npm run film new <name> "Title"`, plus the narration language
+  (`"lang"`) and an optional AI agent that writes `story.json` and `film.js` from a story idea.
+  With an agent, the folder name and title are optional: an empty name is made from the title,
+  else the first words of the idea, else `film-<date>-<time>` (with `-2`, `-3`… if taken), and
+  with no title the agent chooses one and writes it into `story.json`.
+  The agent runs as a job you can follow in **Runs**.
+
+## AI agents
+
+`STUDIO_AGENTS` (default `agy,codex,claude`) lists the agents the dialog offers, in order. Set it in
+`studio/.env` (copy `.env.example`) or the shell, then restart the server. Unknown names are
+ignored, and agents whose CLI is not on `PATH` show as *not installed*.
+
+| Agent | Command (run in the repo root) | Models offered |
+|---|---|---|
+| `agy` | `agy --mode accept-edits --print-timeout 30m [--model M] -p <prompt>` | `agy models` |
+| `codex` | `codex exec --sandbox workspace-write --skip-git-repo-check -C <repo> [-m M] <prompt>` | `codex debug models` (those its picker lists) |
+| `claude` | `claude -p <prompt> --permission-mode acceptEdits --allowedTools Read,Write,Edit,Glob,Grep [--model M]` | aliases `opus`, `sonnet`, `haiku`, `fable` |
+
+The **Model** picker always starts with *Default*, which passes no model flag so the CLI's own
+setting applies. Listed models are cached for 10 minutes. `STUDIO_MODELS_<AGENT>` (for example
+`STUDIO_MODELS_CLAUDE=opus,claude-sonnet-5-5`) replaces an agent's list. The server only accepts a
+model that is in the list it offers.
+
+The prompt (`storyPrompt` in `server/api.mjs`) points the agent at `AGENTS.md`, `analysis/ANALYSIS.md`,
+the engine and a finished film, and tells it to change only `outputs/<name>/`, never read
+`.env.local`, and not run narration, audio or renders. Review the script, then run the pipeline.
 
 ## How it works
 

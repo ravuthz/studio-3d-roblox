@@ -1,7 +1,7 @@
 // Film Studio API: reads outputs/<film>/ and runs core/scripts/film.mjs steps as jobs.
 // Used as Vite middleware in dev (vite.config.ts) and by server/serve.mjs in production.
 import { spawn, spawnSync } from "node:child_process";
-import { createReadStream, existsSync, readdirSync, readFileSync, statSync } from "node:fs";
+import { createReadStream, existsSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { dirname, extname, join, normalize, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -99,13 +99,18 @@ const jobs = new Map();
 let seq = 0;
 const ANSI = /\x1b\[[0-9;?]*[A-Za-z]/g;
 
-function startJob(film, step, args = []) {
+/** a pipeline step: node core/scripts/film.mjs <step> <film> [args] */
+function startStep(film, step, args = []) {
+  return startJob(film, { step, args }, process.execPath, [FILM_CLI, step, film, ...args]);
+}
+
+function startJob(film, info, bin, argv) {
   if ([...jobs.values()].some((j) => j.film === film && j.status === "running")) {
     throw Object.assign(new Error(`A job is already running for ${film}`), { status: 409 });
   }
   const id = `${Date.now().toString(36)}-${++seq}`;
-  const child = spawn(process.execPath, [FILM_CLI, step, film, ...args], { cwd: ROOT, env: { ...process.env, FORCE_COLOR: "0" } });
-  const job = { id, film, step, args, status: "running", code: null, startedAt: Date.now(), endedAt: null, lines: [], child, listeners: new Set() };
+  const child = spawn(bin, argv, { cwd: ROOT, env: { ...process.env, FORCE_COLOR: "0", NO_COLOR: "1" }, stdio: ["ignore", "pipe", "pipe"] });
+  const job = { id, film, args: [], ...info, status: "running", code: null, startedAt: Date.now(), endedAt: null, lines: [], child, listeners: new Set() };
   let partial = "";
   const push = (text) => {
     const line = text.replace(ANSI, "");
@@ -120,7 +125,8 @@ function startJob(film, step, args = []) {
   };
   child.stdout.on("data", onData);
   child.stderr.on("data", onData);
-  child.on("close", (code, signal) => {
+  const finish = (code, signal) => {
+    if (job.status !== "running") return;
     if (partial) push(partial);
     job.code = code;
     job.status = signal ? "stopped" : code === 0 ? "done" : "failed";
@@ -128,7 +134,9 @@ function startJob(film, step, args = []) {
     job.child = null;
     for (const fn of job.listeners) fn({ type: "end", job: publicJob(job) });
     job.listeners.clear();
-  });
+  };
+  child.on("error", (e) => { push(`✗ ${bin}: ${e.message}`); finish(1, null); });
+  child.on("close", finish);
   jobs.set(id, job);
   // keep the 50 most recent jobs
   const ids = [...jobs.keys()];
@@ -136,6 +144,122 @@ function startJob(film, step, args = []) {
   return job;
 }
 const publicJob = ({ child, listeners, lines, ...j }) => ({ ...j, lineCount: lines.length });
+
+// ---------------------------------------------------------------- AI agents
+// STUDIO_AGENTS picks which agents "New film" offers, in order (default: agy,codex,claude).
+// Each runs headless in the repo root and may only edit files, so it writes the story and the
+// shot list but cannot run narration or renders.
+// Each agent: its command (model null = the CLI's own default) and how to list its models.
+// STUDIO_MODELS_<AGENT> (e.g. STUDIO_MODELS_CLAUDE=opus,sonnet) replaces the listed models.
+const AGENTS = {
+  agy: {
+    bin: "agy",
+    run: (prompt, model) => ["--mode", "accept-edits", "--print-timeout", "30m", ...(model ? ["--model", model] : []), "-p", prompt],
+    // `agy models` prints "<id>\t<label>" lines
+    list: async () => (await capture("agy", ["models"])).split("\n").map((l) => l.split("\t")).filter(([id, label]) => id && label && /^[\w.-]+$/.test(id)).map(([id, label]) => ({ id, label: label.trim() })),
+  },
+  codex: {
+    bin: "codex",
+    run: (prompt, model) => ["exec", "--sandbox", "workspace-write", "--skip-git-repo-check", "--color", "never", "-C", ROOT, ...(model ? ["-m", model] : []), prompt],
+    // `codex debug models` prints the model catalog as JSON; keep the ones its picker lists
+    list: async () => JSON.parse(await capture("codex", ["debug", "models"])).models.filter((m) => m.visibility === "list").map((m) => ({ id: m.slug, label: m.display_name })),
+  },
+  claude: {
+    bin: "claude",
+    run: (prompt, model) => ["-p", prompt, "--permission-mode", "acceptEdits", "--allowedTools", "Read,Write,Edit,Glob,Grep", ...(model ? ["--model", model] : [])],
+    // no listing command: the CLI's aliases always point at the latest model of each family
+    list: async () => [
+      { id: "opus", label: "Opus (latest)" },
+      { id: "sonnet", label: "Sonnet (latest)" },
+      { id: "haiku", label: "Haiku (latest)" },
+      { id: "fable", label: "Fable (latest)" },
+    ],
+  },
+};
+const installed = (bin) => spawnSync("sh", ["-c", 'command -v "$1"', "sh", bin], { stdio: "ignore" }).status === 0;
+
+/** stdout of a short command, or a rejection after 30 s */
+function capture(bin, argv) {
+  return new Promise((ok, fail) => {
+    const child = spawn(bin, argv, { cwd: ROOT, stdio: ["ignore", "pipe", "ignore"], env: { ...process.env, NO_COLOR: "1" } });
+    let out = "";
+    const timer = setTimeout(() => { child.kill(); fail(new Error(`${bin} timed out`)); }, 30000);
+    child.stdout.on("data", (d) => (out += d));
+    child.on("error", (e) => { clearTimeout(timer); fail(e); });
+    child.on("close", (code) => { clearTimeout(timer); code === 0 ? ok(out) : fail(new Error(`${bin} exited ${code}`)); });
+  });
+}
+
+// model lists are slow to fetch (agy asks its server), so keep them for 10 minutes
+const modelCache = new Map();
+async function models(name) {
+  const override = process.env[`STUDIO_MODELS_${name.toUpperCase()}`];
+  if (override) return override.split(",").map((m) => m.trim()).filter((m) => /^[\w.:/-]+$/.test(m)).map((id) => ({ id, label: id }));
+  const hit = modelCache.get(name);
+  if (hit && Date.now() - hit.at < 600000) return hit.list;
+  const list = await AGENTS[name].list().catch(() => []);
+  if (list.length) modelCache.set(name, { at: Date.now(), list });
+  return list;
+}
+
+export async function agents() {
+  const names = (process.env.STUDIO_AGENTS || "agy,codex,claude").split(",").map((n) => n.trim().toLowerCase()).filter(Boolean);
+  return Promise.all(
+    [...new Set(names)].filter((n) => AGENTS[n]).map(async (name) => {
+      const ok = installed(AGENTS[name].bin);
+      return { name, installed: ok, models: ok ? await models(name) : [] };
+    }),
+  );
+}
+
+/** a folder name from free text: "The Lost Shadow!" -> "the-lost-shadow" (empty for text with no Latin letters) */
+function slugify(text, words = 8) {
+  return String(text || "")
+    .normalize("NFKD")
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, "")
+    .split(/[\s-]+/)
+    .filter(Boolean)
+    .slice(0, words)
+    .join("-")
+    .slice(0, 48)
+    .replace(/-+$/, "");
+}
+
+/** a free folder name for an agent film whose name was left empty: from the title, else the idea, else the date */
+function autoName(title, idea) {
+  const d = new Date();
+  const stamp = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}-${String(d.getHours()).padStart(2, "0")}${String(d.getMinutes()).padStart(2, "0")}`;
+  const base = slugify(title) || slugify(idea, 5) || `film-${stamp}`;
+  for (let i = 1; ; i++) {
+    const name = i === 1 ? base : `${base.slice(0, 58)}-${i}`;
+    if (NAME.test(name) && !existsSync(join(OUTPUTS, name))) return name;
+  }
+}
+
+function storyPrompt({ name, title, lang, idea }) {
+  const km = lang === "km";
+  return `You are writing a new film in this repository of 3D blocky story films. The folder outputs/${name}/ was just scaffolded from core/template and still holds the template story and shots.
+
+Film folder: outputs/${name}
+Title: ${title || "none given: choose a short, catchy title that fits the story and set it as \"title\" in story.json"}
+Language: ${km ? 'Khmer ("lang": "km")' : 'English ("lang": "en")'}
+Idea: ${idea || (title ? "Invent an original story that fits the title." : "Invent an original story.")}
+
+Steps:
+1. Read AGENTS.md (rules, story.json fields, engine reference and lessons), analysis/ANALYSIS.md (the story template), the exports of core/engine/stage.js, and one finished film as a reference: outputs/dream-rain/story/story.json and outputs/dream-rain/film.js.
+2. Write outputs/${name}/story/story.json: 2–3 minutes of first-person narration by Zero (${km ? "Khmer text sized to 2–3 minutes when spoken" : "about 350–520 English words"}). Rule hook in the first 4 s, a list of examples, "my name is Zero", the turn at 40–60 %, twists at 60–90 %, a cliffhanger or reversal at the end. Add "cuts" words so shots average 1.6–2.1 s, and use "big", "mood", "hits", "pops", "flash" and "sfx" where they help. ${title ? "Keep the title" : "Set the title you chose"}, set "names" (every name captions must keep capitalised) and "lang": "${km ? "km" : "en"}".
+3. Write outputs/${name}/film.js: one staged shot for every cut id (each line id, "<id>.1", "<id>.2"… for its cuts, and "tail"). Every shot gets a camera move and uses only what core/stage.js exports. Film-only characters go in "cast", film-only helpers stay in film.js. Shots must be pure functions of t (no Math.random, no clocks).
+
+Rules: change only files inside outputs/${name}/. Do not run narrate, voice, plan, audio, shots or render, and do not change core/, voices/ or other films. Never read .env.local. The story is original, and the family is fixed: Zero (narrator), Zeebra (elder brother), Luna (mother), Zip (father).
+
+When you finish, print a short summary: number of lines, words and cuts, and the main characters.`;
+}
+
+function startAgent(film, agent, model, opts) {
+  const a = AGENTS[agent];
+  return startJob(film, { step: "write", agent, model }, a.bin, a.run(storyPrompt({ name: film, ...opts }), model));
+}
 
 // ---------------------------------------------------------------- http
 function send(res, status, body) {
@@ -182,13 +306,32 @@ export async function handler(req, res, next) {
 
     if (p === "/api/films" && req.method === "GET") return send(res, 200, filmNames().map((n) => summary(n)));
 
+    if (p === "/api/agents" && req.method === "GET") return send(res, 200, await agents());
+
     if (p === "/api/films" && req.method === "POST") {
-      const { name, title } = await body(req);
+      const { name: rawName, title: rawTitle, lang = "en", agent = null, model = null, idea: rawIdea = "" } = await body(req);
+      const idea = String(rawIdea || "").slice(0, 4000);
+      const given = String(rawTitle || "").trim().slice(0, 200);
+      // with an agent the folder name and title may be left empty: the name comes from the title or idea, the agent picks the title
+      const name = rawName ? String(rawName) : agent ? autoName(given, idea) : "";
       if (!NAME.test(name || "")) return send(res, 400, { error: "Use lowercase letters, numbers and dashes for the name" });
       if (existsSync(join(OUTPUTS, name))) return send(res, 409, { error: `outputs/${name} already exists` });
-      const r = spawnSync(process.execPath, [FILM_CLI, "new", name, String(title || name).slice(0, 200)], { cwd: ROOT, encoding: "utf8" });
+      if (!["en", "km"].includes(lang)) return send(res, 400, { error: "lang must be en or km" });
+      if (agent) {
+        const a = (await agents()).find((x) => x.name === agent);
+        if (!a) return send(res, 400, { error: `Agent ${agent} is not allowed (STUDIO_AGENTS)` });
+        if (!a.installed) return send(res, 400, { error: `${agent} is not installed on this machine` });
+        if (model && !a.models.some((m) => m.id === model)) return send(res, 400, { error: `Model ${model} is not offered for ${agent}` });
+      }
+      const title = given || name;
+      const r = spawnSync(process.execPath, [FILM_CLI, "new", name, title], { cwd: ROOT, encoding: "utf8" });
       if (r.status !== 0) return send(res, 500, { error: (r.stderr || r.stdout).trim() });
-      return send(res, 201, summary(name));
+      // new films use the /my-editor voice clone, picked by "lang"
+      const storyPath = join(OUTPUTS, name, "story/story.json");
+      const story = readJson(storyPath);
+      writeFileSync(storyPath, JSON.stringify({ ...story, lang }, null, 2) + "\n");
+      const job = agent ? publicJob(startAgent(name, agent, model || null, { title: given || null, lang, idea })) : null;
+      return send(res, 201, { film: summary(name), job });
     }
 
     let m = p.match(/^\/api\/films\/([^/]+)$/);
@@ -204,7 +347,7 @@ export async function handler(req, res, next) {
       const { step, args = [] } = await body(req);
       if (!STEPS.has(step)) return send(res, 400, { error: `Unknown step: ${step}` });
       if (!Array.isArray(args) || args.some((a) => typeof a !== "string" || !CUT_ID.test(a))) return send(res, 400, { error: "Bad arguments" });
-      return send(res, 202, publicJob(startJob(film, step, args)));
+      return send(res, 202, publicJob(startStep(film, step, args)));
     }
 
     // open the outputs/ folder in the system file manager (the server only listens on 127.0.0.1)
