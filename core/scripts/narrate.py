@@ -19,7 +19,7 @@ from pathlib import Path
 import numpy as np
 
 ROOT = Path(__file__).resolve().parents[2]
-SKILL = Path(os.environ.get("MY_EDITOR", Path.home() / ".agents/skills/my-editor"))
+SKILL = Path(os.environ.get("MY_EDITOR", ROOT / ".agents/skills/my-editor"))  # project copy of /my-editor (shared by all agents)
 TTS = SKILL / "scripts/tts.py"
 VOICES = {"en": ROOT / "voices/in-town.mp3", "km": ROOT / "voices/ravuthz.mp3"}
 SR = 44100

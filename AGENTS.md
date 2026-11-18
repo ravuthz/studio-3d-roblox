@@ -45,6 +45,8 @@ studio/               Film Studio web app (Vite + React + shadcn/ui, light and d
                       read scripts, review snapshots, play renders and run pipeline steps with live logs
 analysis/             notes and scripts from studying ten reference shorts (ANALYSIS.md)
 voices/               narration references for /my-editor: in-town.mp3 (English), ravuthz.mp3 (Khmer)
+.agents/skills/       project skills for every agent (my-editor); .claude/skills is a symlink to it
+CLAUDE.md, GEMINI.md  both just import this file
 elevenlabs.js         ElevenLabs client (legacy narration); key and ELEVENLABS_VOICE_ID come from .env.local
 ```
 
@@ -125,6 +127,12 @@ Add `"lang": "en"` or `"lang": "km"` to pick the narration voice (English is the
 
 `npm run film narrate <name>` (`core/scripts/narrate.py`) runs the `/my-editor` voice-clone
 workflow for the whole film:
+
+- **Skill copy**: the project carries its own copy of the skill in `.agents/skills/my-editor/`
+  (SKILL.md, `scripts/tts.py`, `sfx.py`, transcription scripts; no voice files — it reads `./voices/`).
+  Codex, Antigravity (`agy`), Gemini CLI and OpenCode read `.agents/skills/`; Claude Code reads it
+  through the `.claude/skills` symlink. Put new project skills in `.agents/skills/`, never in
+  `.claude/skills/` directly. `narrate.py` uses this copy; set `MY_EDITOR=<dir>` to use another one.
 
 - **Reference**: `voices/in-town.mp3` for English (`"lang": "en"`, the default), `voices/ravuthz.mp3`
   for Khmer (`"lang": "km"`). The reference is cleaned into a temp file; `voices/` is never written.

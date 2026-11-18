@@ -1,0 +1,6 @@
+# Installed into the Docker image's /opt/venv at build time (docker/Dockerfile, stage skillpy).
+gradio_client
+numpy
+scipy
+google-genai
+python-dotenv
