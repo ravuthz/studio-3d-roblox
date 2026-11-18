@@ -14,6 +14,10 @@ analysis/preprocess.log
 outputs
 .DS_Store
 
+# Python bytecode
+__pycache__/
+*.py[cod]
+
 # Film Studio build output
 studio/dist/
 
