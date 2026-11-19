@@ -30,8 +30,8 @@ def bare(w):
     return re.sub(r"[^a-z0-9ក-៿]", "", w.lower())
 
 
-def decode(path):
-    raw = subprocess.run(["ffmpeg", "-v", "error", "-i", str(path), "-ac", "1", "-ar", str(SR), "-f", "f32le", "-"],
+def decode(path, sr=SR):
+    raw = subprocess.run(["ffmpeg", "-v", "error", "-i", str(path), "-ac", "1", "-ar", str(sr), "-f", "f32le", "-"],
                          capture_output=True, check=True).stdout
     return np.frombuffer(raw, np.float32)
 
@@ -55,7 +55,7 @@ def whisper_words(path, prompt):
     from faster_whisper import WhisperModel
     if _model is None:
         _model = WhisperModel("small.en", device="cpu", compute_type="int8")
-    segs, _ = _model.transcribe(str(path), language="en", word_timestamps=True, initial_prompt=prompt,
+    segs, _ = _model.transcribe(decode(path, 16000), language="en", word_timestamps=True, initial_prompt=prompt,
                                 vad_filter=False, beam_size=5)
     return [(w.word.strip(), w.start, w.end) for s in segs for w in s.words]
 
@@ -100,8 +100,8 @@ def main():
     ap.add_argument("--jobs", type=int, default=3)
     a = ap.parse_args()
 
-    film = Path(a.film) if "/" in a.film else ROOT / "outputs" / a.film
-    story = json.loads((film / "story/story.json").read_text())
+    film = Path(a.film) if ("/" in a.film or "\\" in a.film) else ROOT / "outputs" / a.film
+    story = json.loads((film / "story/story.json").read_text(encoding="utf-8"))
     lang = story.get("lang", "en")
     ref = VOICES[lang]
     lines = story["lines"]
@@ -171,7 +171,7 @@ def main():
     dur = float(subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", str(out)],
                                capture_output=True, text=True).stdout)
     timing = {"duration": r3(dur), "lines": lines_out, "words": words_out}
-    (film / "story/timing.js").write_text(f"window.STORY_TIMING = {json.dumps(timing, indent=1)};\n")
+    (film / "story/timing.js").write_text(f"window.STORY_TIMING = {json.dumps(timing, indent=1)};\n", encoding="utf-8")
     used = sorted(set(services.values()))
     print(f"VO {dur:.2f} s ({dur / 60:.2f} min), {len(words_out)} words, {len(words_out) / dur * 60:.0f} wpm"
           + (f"; services: {', '.join(used)}" if used else ""))

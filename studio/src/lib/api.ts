@@ -77,6 +77,39 @@ export interface NewFilm {
   idea: string
 }
 
+export interface FilmTopic {
+  name: string
+  title: string
+  idea: string
+  source: string
+}
+
+export interface AutoFilm {
+  name: string
+  title: string
+  idea: string
+  source: string
+  status: "running" | "done" | "failed" | "stopped"
+  step: "new" | "write" | "build" | null
+  render?: string
+}
+
+export interface AutoState {
+  status: "running" | "done" | "stopped"
+  agent: string
+  model: string | null
+  lang: "en" | "km"
+  /** 0 = until stopped */
+  count: number
+  phase: "topic" | "write" | "build" | null
+  film: string | null
+  job: Job | null
+  films: AutoFilm[]
+  log: string[]
+  startedAt: number
+  endedAt: number | null
+}
+
 export interface Job {
   id: string
   film: string
@@ -103,6 +136,12 @@ export const api = {
   films: () => request<FilmSummary[]>("/api/films"),
   film: (name: string) => request<FilmDetail>(`/api/films/${name}`),
   agents: () => request<Agent[]>("/api/agents"),
+  topic: (opts: { agent?: string | null; model?: string | null; avoid?: string[] } = {}) =>
+    request<FilmTopic>("/api/topic", { method: "POST", body: JSON.stringify(opts) }),
+  auto: () => request<AutoState | null>("/api/auto"),
+  startAuto: (opts: { agent?: string | null; model?: string | null; lang?: "en" | "km"; count?: number }) =>
+    request<AutoState>("/api/auto", { method: "POST", body: JSON.stringify(opts) }),
+  stopAuto: () => request<AutoState | null>("/api/auto/stop", { method: "POST" }),
   create: (film: NewFilm) =>
     request<{ film: FilmSummary; job: Job | null }>("/api/films", { method: "POST", body: JSON.stringify(film) }),
   run: (name: string, step: Step, args: string[] = []) =>

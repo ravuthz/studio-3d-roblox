@@ -21,8 +21,10 @@ npm run build && npm start   # production build served by server/serve.mjs (PORT
     words and mood changes.
   - **Shots**: the latest snapshot of every shot; click frames to pick them and re-shoot only those.
   - **Runs**: live logs of jobs (server-sent events), with Stop.
-- **New film**: same as `npm run film new <name> "Title"`, plus the narration language
-  (`"lang"`) and an optional AI agent that writes `story.json` and `film.js` from a story idea.
+- **New film**: same as `npm run film new <name> "Title"`, plus **Auto topic** (fills a fresh
+  English `"In this town…"` title, unused folder name and story idea; or **Ask `<agent>`** when an
+  agent is selected), the narration language (`"lang"`) and an optional AI agent that writes
+  `story.json` and `film.js` from the story idea.
   With an agent, the folder name and title are optional: an empty name is made from the title,
   else the first words of the idea, else `film-<date>-<time>` (with `-2`, `-3`… if taken), and
   with no title the agent chooses one and writes it into `story.json`.

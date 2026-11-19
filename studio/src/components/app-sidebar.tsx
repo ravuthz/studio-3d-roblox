@@ -1,6 +1,7 @@
 import { Clapperboard, FolderOpen, LayoutDashboard, Loader2, Plus } from "lucide-react"
 import { toast } from "sonner"
 
+import { AutopilotStatus } from "@/components/autopilot-status"
 import { NewFilmDialog } from "@/components/new-film-dialog"
 import {
   Sidebar,
@@ -97,6 +98,7 @@ export function AppSidebar({ films, route, onCreated }: { films: FilmSummary[] |
       </SidebarContent>
 
       <SidebarFooter>
+        <AutopilotStatus onChange={onCreated} />
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton

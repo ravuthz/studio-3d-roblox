@@ -19,12 +19,13 @@ import { CORE, OUTPUTS, ROOT, filmDir } from "./lib.mjs";
 const HF = ["--yes", "hyperframes@0.9.22"];
 const BLENDER = process.env.BLENDER || "/Applications/Blender.app/Contents/MacOS/Blender";
 // the audio script needs numpy: use $PYTHON, or the first interpreter that has it
-const PYTHON = process.env.PYTHON || ["python3", "/opt/homebrew/bin/python3", "/opt/homebrew/opt/python@3.11/bin/python3.11", "/usr/local/bin/python3"]
+const PYTHON = process.env.PYTHON || ["python3", "python", "/opt/homebrew/bin/python3", "/opt/homebrew/opt/python@3.11/bin/python3.11", "/usr/local/bin/python3"]
   .find((py) => spawnSync(py, ["-c", "import numpy"], { stdio: "ignore" }).status === 0) || "python3";
 const [cmd, name, ...rest] = process.argv.slice(2);
 
 function run(bin, args, opts = {}) {
-  const r = spawnSync(bin, args, { stdio: "inherit", cwd: ROOT, ...opts });
+  const winNpx = process.platform === "win32" && bin === "npx";
+  const r = spawnSync(winNpx ? "npx.cmd" : bin, args, { stdio: "inherit", cwd: ROOT, ...(winNpx ? { shell: true } : {}), ...opts });
   if (r.status !== 0) process.exit(r.status ?? 1);
 }
 /** every film folder carries a "core" symlink so its page can load the shared engine and assets */
@@ -32,7 +33,10 @@ function link(dir) {
   const p = join(dir, "core");
   let present = false;
   try { lstatSync(p); present = true; } catch {}
-  if (!present) symlinkSync("../../core", p, "dir");
+  if (!present) {
+    try { symlinkSync("../../core", p, "dir"); }
+    catch (e) { if (process.platform === "win32") symlinkSync(CORE, p, "junction"); else throw e; }
+  }
 }
 const steps = {
   new() {
@@ -53,7 +57,7 @@ const steps = {
   voice() { run("node", ["--env-file=.env.local", "core/scripts/tts.mjs", name]); },
   narrate() {
     // needs numpy, gradio_client and faster_whisper: use $NARRATE_PYTHON, or the first interpreter that has them
-    const py = process.env.NARRATE_PYTHON || [PYTHON, "python3", "/opt/homebrew/opt/python@3.11/bin/python3.11", "/opt/homebrew/bin/python3"]
+    const py = process.env.NARRATE_PYTHON || [PYTHON, "python3", "python", "/opt/homebrew/opt/python@3.11/bin/python3.11", "/opt/homebrew/bin/python3"]
       .find((p) => spawnSync(p, ["-c", "import numpy, gradio_client, faster_whisper"], { stdio: "ignore" }).status === 0) || "python3";
     run(py, ["core/scripts/narrate.py", name, ...rest]);
   },

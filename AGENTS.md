@@ -81,6 +81,7 @@ npm run film shots <name> [ids]   # snapshot the middle frame of every shot, or 
 npm run film render <name>        # outputs/<name>/renders/<name>.mp4
 npm run film build <name>         # narrate (voice for films without "lang") → plan → audio → check → render
 npm run film assets               # rebuild core/assets with Blender (after editing build_assets.py)
+npm run auto -- [--count N] [--agent claude] [--model id] [--lang en|km]   # autopilot: next topic → agent writes story + shots → build → MP4, no confirmation (--count 0 = until Ctrl+C)
 npm run studio                    # Film Studio web app on http://127.0.0.1:3100 (run `npm install` in studio/ once)
 ```
 
@@ -90,6 +91,10 @@ It binds to 127.0.0.1 and serves only `renders/`, `assets/audio/` and snapshot f
 UI components come from shadcn: add more with `npx shadcn@latest add <name>` inside `studio/`.
 "New film" in the studio can hand the new folder to an AI agent (`STUDIO_AGENTS`, default
 `agy,codex,claude`, set in `studio/.env`) that writes `story.json` and `film.js` only.
+"Autopilot to video" in that dialog (or `npm run auto`) does the whole chain unattended: it picks the
+next unused topic (the agent, else the built-in list in `studio/server/topics.mjs`), scaffolds the film,
+lets the agent write it, then runs `build`. It skips the snapshot review, so check the render afterwards.
+It stops after three failed films in a row; the sidebar shows progress and a stop button.
 
 Preview in the browser: the `film-preview` entry in `.claude/launch.json` serves one film on
 port 3002; change its `outputs/<name>` argument to preview another film.
@@ -178,7 +183,7 @@ createFilm({
   `a.number(text, color, scale)` shows a badge above the head.
 - **Clips**: Idle, Walk, Run, Talk, Wave, Shock (one-shot), Cheer, Sad, Point, LookUp, Sit, HandsUp,
   Reach, Shiver, Eat, Block. **Faces**: neutral, happy, shock, sad, smug, angry, sleep.
-  Face options: `blush`, `lashes`, `mustache`, `brow`, `alien`. **Hair**: Zero, Zeebra, Luna, Zip, Zark, Mayor.
+  Face options: `blush`, `lashes`, `mustache`, `brow`, `alien`, `shade` (glowing eyes for a dark shadow person; a string sets the eye colour). **Hair**: Zero, Zeebra, Luna, Zip, Zark, Mayor.
 - **Clothing**: `fit: [...]` picks the pieces a character wears: sleeves `Short` or `Long` (cuffs),
   `Shorts`, neck `Crew` / `Collar` / `Scarf`, body `Hood` / `Jacket` / `Tie` / `Belt` / `Pack`, and `Skirt`.
   `cloth: { Shirt | Pants | Skirt: "stripes" | ["plaid", "#second"] }` prints a pattern (stripes, pinstripe,

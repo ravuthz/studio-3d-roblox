@@ -12,7 +12,7 @@ ROOT = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), 
 if len(sys.argv) < 2:
     sys.exit("Give a film name, e.g. zark (a folder under outputs/)")
 FILM = sys.argv[1] if os.path.isabs(sys.argv[1]) else os.path.join(ROOT, "outputs", sys.argv[1])
-PLAN = json.load(open(os.path.join(FILM, "story/plan.json")))
+PLAN = json.load(open(os.path.join(FILM, "story/plan.json"), encoding="utf-8"))
 OUT = os.path.join(FILM, "assets/audio")
 os.makedirs(OUT, exist_ok=True)
 SR = 44100

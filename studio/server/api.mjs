@@ -4,6 +4,7 @@ import { spawn, spawnSync } from "node:child_process";
 import { createReadStream, existsSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { dirname, extname, join, normalize, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
+import { parseTopic, pickTopic, slugify, topicPrompt } from "./topics.mjs";
 
 export const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const OUTPUTS = join(ROOT, "outputs");
@@ -109,8 +110,10 @@ function startJob(film, info, bin, argv) {
     throw Object.assign(new Error(`A job is already running for ${film}`), { status: 409 });
   }
   const id = `${Date.now().toString(36)}-${++seq}`;
-  const child = spawn(bin, argv, { cwd: ROOT, env: { ...process.env, FORCE_COLOR: "0", NO_COLOR: "1" }, stdio: ["ignore", "pipe", "pipe"] });
-  const job = { id, film, args: [], ...info, status: "running", code: null, startedAt: Date.now(), endedAt: null, lines: [], child, listeners: new Set() };
+  const child = spawnBin(bin, argv, { cwd: ROOT, env: { ...process.env, FORCE_COLOR: "0", NO_COLOR: "1" }, stdio: ["ignore", "pipe", "pipe"] });
+  let resolveDone;
+  const done = new Promise((ok) => (resolveDone = ok));
+  const job = { id, film, args: [], ...info, status: "running", code: null, startedAt: Date.now(), endedAt: null, lines: [], child, listeners: new Set(), done };
   let partial = "";
   const push = (text) => {
     const line = text.replace(ANSI, "");
@@ -134,6 +137,7 @@ function startJob(film, info, bin, argv) {
     job.child = null;
     for (const fn of job.listeners) fn({ type: "end", job: publicJob(job) });
     job.listeners.clear();
+    resolveDone(job);
   };
   child.on("error", (e) => { push(`✗ ${bin}: ${e.message}`); finish(1, null); });
   child.on("close", finish);
@@ -141,9 +145,12 @@ function startJob(film, info, bin, argv) {
   // keep the 50 most recent jobs
   const ids = [...jobs.keys()];
   for (const old of ids.slice(0, Math.max(0, ids.length - 50))) if (jobs.get(old).status !== "running") jobs.delete(old);
+  for (const fn of jobHooks) fn(job);
   return job;
 }
-const publicJob = ({ child, listeners, lines, ...j }) => ({ ...j, lineCount: lines.length });
+/** called with every new job (the autopilot CLI uses it to print logs) */
+export const jobHooks = new Set();
+const publicJob = ({ child, listeners, lines, done, ...j }) => ({ ...j, lineCount: lines.length });
 
 // ---------------------------------------------------------------- AI agents
 // STUDIO_AGENTS picks which agents "New film" offers, in order (default: agy,codex,claude).
@@ -155,18 +162,21 @@ const AGENTS = {
   agy: {
     bin: "agy",
     run: (prompt, model) => ["--mode", "accept-edits", "--print-timeout", "30m", ...(model ? ["--model", model] : []), "-p", prompt],
+    ask: (prompt, model) => ["--mode", "plan", "--disable-slash-commands", "--print-timeout", "60s", ...(model ? ["--model", model] : []), "-p", prompt],
     // `agy models` prints "<id>\t<label>" lines
     list: async () => (await capture("agy", ["models"])).split("\n").map((l) => l.split("\t")).filter(([id, label]) => id && label && /^[\w.-]+$/.test(id)).map(([id, label]) => ({ id, label: label.trim() })),
   },
   codex: {
     bin: "codex",
     run: (prompt, model) => ["exec", "--sandbox", "workspace-write", "--skip-git-repo-check", "--color", "never", "-C", ROOT, ...(model ? ["-m", model] : []), prompt],
+    ask: (prompt, model) => ["exec", "--sandbox", "read-only", "--skip-git-repo-check", "--color", "never", "-C", ROOT, ...(model ? ["-m", model] : []), prompt],
     // `codex debug models` prints the model catalog as JSON; keep the ones its picker lists
     list: async () => JSON.parse(await capture("codex", ["debug", "models"])).models.filter((m) => m.visibility === "list").map((m) => ({ id: m.slug, label: m.display_name })),
   },
   claude: {
     bin: "claude",
     run: (prompt, model) => ["-p", prompt, "--permission-mode", "acceptEdits", "--allowedTools", "Read,Write,Edit,Glob,Grep", ...(model ? ["--model", model] : [])],
+    ask: (prompt, model) => ["-p", prompt, "--tools", "", ...(model ? ["--model", model] : [])],
     // no listing command: the CLI's aliases always point at the latest model of each family
     list: async () => [
       { id: "opus", label: "Opus (latest)" },
@@ -176,14 +186,32 @@ const AGENTS = {
     ],
   },
 };
-const installed = (bin) => spawnSync("sh", ["-c", 'command -v "$1"', "sh", bin], { stdio: "ignore" }).status === 0;
 
-/** stdout of a short command, or a rejection after 30 s */
-function capture(bin, argv) {
+function which(bin) {
+  if (process.platform === "win32") {
+    const r = spawnSync("where.exe", [bin], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] });
+    if (r.status !== 0) return null;
+    const paths = r.stdout.split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
+    return paths.find((p) => /\.(exe|com)$/i.test(p)) || paths[0] || null;
+  }
+  const r = spawnSync("sh", ["-c", 'command -v "$1"', "sh", bin], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] });
+  return r.status === 0 ? r.stdout.trim() || null : null;
+}
+const installed = (bin) => Boolean(which(bin));
+
+function spawnBin(bin, argv, opts) {
+  const exe = which(bin) || bin;
+  const cmdShim = process.platform === "win32" && /\.(cmd|bat)$/i.test(exe);
+  const args = cmdShim ? argv.map((a) => String(a).replace(/\r?\n+/g, " ")) : argv;
+  return spawn(exe, args, cmdShim ? { ...opts, shell: true } : opts);
+}
+
+/** stdout of a short command, or a rejection after timeoutMs */
+function capture(bin, argv, timeoutMs = 30000) {
   return new Promise((ok, fail) => {
-    const child = spawn(bin, argv, { cwd: ROOT, stdio: ["ignore", "pipe", "ignore"], env: { ...process.env, NO_COLOR: "1" } });
+    const child = spawnBin(bin, argv, { cwd: ROOT, stdio: ["ignore", "pipe", "ignore"], env: { ...process.env, NO_COLOR: "1" } });
     let out = "";
-    const timer = setTimeout(() => { child.kill(); fail(new Error(`${bin} timed out`)); }, 30000);
+    const timer = setTimeout(() => { child.kill(); fail(new Error(`${bin} timed out`)); }, timeoutMs);
     child.stdout.on("data", (d) => (out += d));
     child.on("error", (e) => { clearTimeout(timer); fail(e); });
     child.on("close", (code) => { clearTimeout(timer); code === 0 ? ok(out) : fail(new Error(`${bin} exited ${code}`)); });
@@ -210,20 +238,6 @@ export async function agents() {
       return { name, installed: ok, models: ok ? await models(name) : [] };
     }),
   );
-}
-
-/** a folder name from free text: "The Lost Shadow!" -> "the-lost-shadow" (empty for text with no Latin letters) */
-function slugify(text, words = 8) {
-  return String(text || "")
-    .normalize("NFKD")
-    .toLowerCase()
-    .replace(/[^a-z0-9\s-]/g, "")
-    .split(/[\s-]+/)
-    .filter(Boolean)
-    .slice(0, words)
-    .join("-")
-    .slice(0, 48)
-    .replace(/-+$/, "");
 }
 
 /** a free folder name for an agent film whose name was left empty: from the title, else the idea, else the date */
@@ -259,6 +273,154 @@ When you finish, print a short summary: number of lines, words and cuts, and the
 function startAgent(film, agent, model, opts) {
   const a = AGENTS[agent];
   return startJob(film, { step: "write", agent, model }, a.bin, a.run(storyPrompt({ name: film, ...opts }), model));
+}
+
+/** checks agent and model against STUDIO_AGENTS and the installed CLIs; returns an error message or null */
+async function agentError(agent, model) {
+  const a = (await agents()).find((x) => x.name === agent);
+  if (!a) return `Agent ${agent} is not allowed (STUDIO_AGENTS)`;
+  if (!a.installed) return `${agent} is not installed on this machine`;
+  if (model && !a.models.some((m) => m.id === model)) return `Model ${model} is not offered for ${agent}`;
+  return null;
+}
+
+/** names and titles already used, so a new topic does not repeat one */
+function takenTopics(avoid = []) {
+  const existing = filmNames();
+  const existingTitles = existing.map((n) => readJson(join(OUTPUTS, n, "story/story.json"))?.title).filter(Boolean);
+  const avoidList = Array.isArray(avoid) ? avoid.filter((x) => typeof x === "string").slice(0, 100) : [];
+  const takenNames = new Set([...existing, ...avoidList.map((s) => (NAME.test(s) ? s : slugify(s, 5))).filter(Boolean)]);
+  const takenTitles = new Set([...existingTitles, ...avoidList].map((s) => s.trim().toLowerCase()).filter(Boolean));
+  return { takenNames, takenTitles };
+}
+
+/** a topic from the agent (read-only), or from the built-in list */
+async function nextTopic({ agent = null, model = null, avoid = [] } = {}) {
+  const { takenNames, takenTitles } = takenTopics(avoid);
+  if (!agent) return { ...pickTopic({ takenNames, takenTitles }), source: "builtin" };
+  const prompt = topicPrompt({ takenNames: [...takenNames], takenTitles: [...takenTitles] });
+  const out = await capture(AGENTS[agent].bin, AGENTS[agent].ask(prompt, model || null), 60000);
+  return { ...parseTopic(out, takenNames), source: agent };
+}
+
+/** npm run film new, then "lang" in story.json and the idea in meta.json */
+function scaffold({ name, title, lang, idea = "" }) {
+  const r = spawnSync(process.execPath, [FILM_CLI, "new", name, title || name], { cwd: ROOT, encoding: "utf8" });
+  if (r.status !== 0) throw Object.assign(new Error((r.stderr || r.stdout).trim()), { status: 500 });
+  // new films use the /my-editor voice clone, picked by "lang"
+  const storyPath = join(OUTPUTS, name, "story/story.json");
+  writeFileSync(storyPath, JSON.stringify({ ...readJson(storyPath), lang }, null, 2) + "\n");
+  if (idea.trim()) {
+    const metaPath = join(OUTPUTS, name, "meta.json");
+    writeFileSync(metaPath, JSON.stringify({ ...readJson(metaPath), idea: idea.trim() }, null, 2) + "\n");
+  }
+}
+
+// ---------------------------------------------------------------- autopilot
+// topic -> scaffold -> agent writes story.json and film.js -> build (narrate, plan, audio, check, render),
+// for `count` films in a row (0 = until stopped), without asking for confirmation at any step.
+let auto = null;
+const publicAuto = () => auto && { ...auto, done: undefined, job: auto.job ? publicJob(auto.job) : null, log: auto.log.slice(-200) };
+
+export function autoState() { return publicAuto(); }
+
+export async function startAuto({ agent = null, model = null, lang = "en", count = 1, topicAgent = true } = {}) {
+  if (auto?.status === "running") throw Object.assign(new Error("Autopilot is already running"), { status: 409 });
+  if (!["en", "km"].includes(lang)) throw Object.assign(new Error("lang must be en or km"), { status: 400 });
+  count = Math.max(0, Math.min(50, Number.isFinite(+count) ? Math.floor(+count) : 1));
+  // the story needs an agent: the given one, else the first installed one
+  if (!agent) agent = (await agents()).find((a) => a.installed)?.name;
+  if (!agent) throw Object.assign(new Error("No AI agent is installed (STUDIO_AGENTS)"), { status: 400 });
+  const err = await agentError(agent, model);
+  if (err) throw Object.assign(new Error(err), { status: 400 });
+  const state = { status: "running", agent, model, lang, count, phase: "topic", film: null, job: null, films: [], log: [], startedAt: Date.now(), endedAt: null, stopping: false };
+  auto = state;
+  state.done = runAuto(state, { topicAgent })
+    .catch((e) => note(state, `✗ ${e.message}`))
+    .finally(() => {
+      state.status = state.stopping ? "stopped" : "done";
+      state.phase = null;
+      state.job = null;
+      state.endedAt = Date.now();
+      note(state, `autopilot ${state.status}: ${state.films.filter((f) => f.status === "done").length} of ${state.films.length} films rendered`);
+    });
+  return publicAuto();
+}
+
+/** resolves when the running autopilot ends (the CLI waits on it) */
+export const autoDone = () => auto?.done ?? Promise.resolve();
+
+export function stopAuto() {
+  if (auto?.status !== "running") return publicAuto();
+  auto.stopping = true;
+  auto.job?.child?.kill("SIGTERM");
+  return publicAuto();
+}
+
+function note(state, line) {
+  state.log.push(line);
+  if (state.log.length > 1000) state.log.splice(0, state.log.length - 1000);
+  for (const fn of autoHooks) fn(line);
+}
+/** called with every autopilot log line (the CLI prints them) */
+export const autoHooks = new Set();
+
+async function runAuto(state, { topicAgent }) {
+  const seen = [];
+  let failures = 0;
+  for (let i = 0; !state.stopping && (state.count === 0 || i < state.count); i++) {
+    // 1. topic: ask the agent, fall back to the built-in list
+    state.phase = "topic";
+    state.film = null;
+    let topic;
+    try {
+      topic = await nextTopic({ agent: topicAgent ? state.agent : null, model: state.model, avoid: seen });
+    } catch (e) {
+      note(state, `topic from ${state.agent} failed (${e.message}); using the built-in list`);
+      topic = await nextTopic({ avoid: seen });
+    }
+    if (state.stopping) break;
+    const name = autoName(topic.name, topic.idea);
+    seen.push(name, topic.title);
+    const entry = { name, title: topic.title, idea: topic.idea, source: topic.source, status: "running", step: "new" };
+    state.films.push(entry);
+    state.film = name;
+    note(state, `▶ ${name}: ${topic.title} (${topic.source})`);
+
+    // 2. scaffold outputs/<name>/
+    scaffold({ name, title: topic.title, lang: state.lang, idea: topic.idea });
+
+    // 3. the agent writes story.json and film.js
+    state.phase = entry.step = "write";
+    const storyPath = join(OUTPUTS, name, "story/story.json");
+    const before = readFileSync(storyPath, "utf8");
+    state.job = startAgent(name, state.agent, state.model, { title: topic.title, lang: state.lang, idea: topic.idea });
+    await state.job.done;
+    const wrote = state.job.status === "done" && readFileSync(storyPath, "utf8") !== before && readJson(storyPath)?.lines?.length > 0;
+    if (!wrote) {
+      entry.status = state.stopping ? "stopped" : "failed";
+      note(state, `✗ ${name}: the agent ${state.job.status === "done" ? "did not write story.json" : state.job.status}`);
+      if (state.stopping || ++failures >= 3) break;
+      continue;
+    }
+
+    // 4. narrate -> plan -> audio -> check -> render
+    state.phase = entry.step = "build";
+    state.job = startStep(name, "build");
+    await state.job.done;
+    if (state.job.status !== "done") {
+      entry.status = state.stopping ? "stopped" : "failed";
+      note(state, `✗ ${name}: build ${state.job.status}`);
+      if (state.stopping || ++failures >= 3) break;
+      continue;
+    }
+    failures = 0;
+    entry.status = "done";
+    entry.step = null;
+    entry.render = `outputs/${name}/renders/${name}.mp4`;
+    note(state, `✓ ${name}: ${entry.render}`);
+  }
+  if (failures >= 3) note(state, "three films failed in a row: autopilot stops");
 }
 
 // ---------------------------------------------------------------- http
@@ -308,6 +470,19 @@ export async function handler(req, res, next) {
 
     if (p === "/api/agents" && req.method === "GET") return send(res, 200, await agents());
 
+    if (p === "/api/topic" && req.method === "POST") {
+      const { agent = null, model = null, avoid = [] } = await body(req);
+      if (agent) {
+        const err = await agentError(agent, model);
+        if (err) return send(res, 400, { error: err });
+      }
+      return send(res, 200, await nextTopic({ agent, model, avoid }));
+    }
+
+    if (p === "/api/auto" && req.method === "GET") return send(res, 200, autoState());
+    if (p === "/api/auto" && req.method === "POST") return send(res, 202, await startAuto(await body(req)));
+    if (p === "/api/auto/stop" && req.method === "POST") return send(res, 200, stopAuto());
+
     if (p === "/api/films" && req.method === "POST") {
       const { name: rawName, title: rawTitle, lang = "en", agent = null, model = null, idea: rawIdea = "" } = await body(req);
       const idea = String(rawIdea || "").slice(0, 4000);
@@ -318,18 +493,10 @@ export async function handler(req, res, next) {
       if (existsSync(join(OUTPUTS, name))) return send(res, 409, { error: `outputs/${name} already exists` });
       if (!["en", "km"].includes(lang)) return send(res, 400, { error: "lang must be en or km" });
       if (agent) {
-        const a = (await agents()).find((x) => x.name === agent);
-        if (!a) return send(res, 400, { error: `Agent ${agent} is not allowed (STUDIO_AGENTS)` });
-        if (!a.installed) return send(res, 400, { error: `${agent} is not installed on this machine` });
-        if (model && !a.models.some((m) => m.id === model)) return send(res, 400, { error: `Model ${model} is not offered for ${agent}` });
+        const err = await agentError(agent, model);
+        if (err) return send(res, 400, { error: err });
       }
-      const title = given || name;
-      const r = spawnSync(process.execPath, [FILM_CLI, "new", name, title], { cwd: ROOT, encoding: "utf8" });
-      if (r.status !== 0) return send(res, 500, { error: (r.stderr || r.stdout).trim() });
-      // new films use the /my-editor voice clone, picked by "lang"
-      const storyPath = join(OUTPUTS, name, "story/story.json");
-      const story = readJson(storyPath);
-      writeFileSync(storyPath, JSON.stringify({ ...story, lang }, null, 2) + "\n");
+      scaffold({ name, title: given || name, lang, idea });
       const job = agent ? publicJob(startAgent(name, agent, model || null, { title: given || null, lang, idea })) : null;
       return send(res, 201, { film: summary(name), job });
     }
