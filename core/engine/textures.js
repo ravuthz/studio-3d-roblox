@@ -164,6 +164,16 @@ const KINDS = {
     const g = fbm(28, [[48, 3], [96, 6]]);
     return surface(256, 1.4, (x, y) => g(x, y), (x, y) => 0.92 + 0.12 * g(x, y), 2.4);
   },
+  checker: () => { // two-tone floor tiles, 2x2 per tile repeat
+    const n = fbm(31, sq([16, 64, 128]));
+    return surface(512, 4, (x, y) => { const [e] = cells(x, y, 2, 2, 0); return ss(0, 0.03, e) * (0.85 + 0.15 * n(x, y)); },
+      (x, y) => { const [e, r, c] = cells(x, y, 2, 2, 0); return ((r + c) % 2 ? 0.34 : 1.0) * (0.75 + 0.25 * ss(0, 0.025, e)) * (0.95 + 0.1 * n(x, y)); }, 2.4);
+  },
+  tiles: () => { // small glossy wall tiles
+    const n = fbm(32, sq([32, 128]));
+    return surface(512, 2, (x, y) => { const [e] = cells(x, y, 4, 8, 0); return ss(0, 0.06, e); },
+      (x, y) => { const [e, r, c] = cells(x, y, 4, 8, 0); return e < 0.05 ? 0.78 : (0.92 + 0.08 * hash2(r, c, 33)) * (0.97 + 0.06 * n(x, y)); }, 2.4);
+  },
   carpet: () => {
     const n = fbm(29, sq([64, 128])), r = mulberry32(30);
     return surface(256, 1.5, (x, y) => n(x, y), (x, y) => 0.86 + 0.14 * n(x, y) + 0.08 * (r() - 0.5), 2.4);
@@ -190,6 +200,23 @@ const SURFACES = {
   Glass: [null, 0, 0.08, 0.2], HouseGlass: [null, 0, 0.08, 0.2], CarGlass: [null, 0, 0.06, 0.3],
   CarPaint: [null, 0, 0.24, 0.35], Tire: [null, 0, 0.85, 0], SaucerHull: [null, 0, 0.28, 0.7], ShipHull: [null, 0, 0.36, 0.6], ShipDome: [null, 0, 0.3, 0.6],
   Frame: [null, 0, 0.6, 0], TowerDark: [null, 0, 0.45, 0.3], Knob: [null, 0, 0.25, 0.9],
+  // highway set and road-trip car cabin
+  HighwayAsphalt: ["asphalt", 0.95, 0.9], HighwayShoulder: ["rock", 0.7, 0.95], DesertGround: ["rock", 0.55, 0.98],
+  MesaRock: ["rock", 1.0, 0.95], RoadWood: ["grain", 0.9, 0.9], Cactus: ["leaves", 0.6, 0.85],
+  SeatFabric: ["fabric", 0.75, 0.92], DashMat: ["plaster", 0.25, 0.78], Luggage: ["fabric", 0.7, 0.82],
+  RoadCarPaint: [null, 0, 0.24, 0.35], RoadChrome: [null, 0, 0.22, 0.88],
+  // home interior and cafe sets
+  HomeFloor: ["planks", 0.8, 0.5], HomeWall: ["plaster", 0.35, 0.95], HomeWood: ["grain", 0.7, 0.55], HomeTile: ["tiles", 0.7, 0.3],
+  Sofa: ["fabric", 0.9, 0.95], HomeRug: ["carpet", 1, 1], HomeLeaf: ["leaves", 0.8, 0.85], Cabinet: ["plaster", 0.15, 0.6],
+  Counter: [null, 0, 0.25, 0.05], Appliance: [null, 0, 0.3, 0.55],
+  CafeFloor: ["checker", 0.6, 0.45], CafeBrick: ["brick", 0.9, 0.92], CafeWood: ["grain", 0.8, 0.6], CafePlaster: ["plaster", 0.4, 0.95],
+  CafeBoard: ["plaster", 0.2, 0.98],
+  // scene kit (core/engine/kit.js): palette surfaces by texture kind
+  KitPlanks: ["planks", 0.8, 0.5], KitPlaster: ["plaster", 0.35, 0.95], KitBrick: ["brick", 0.9, 0.92], KitGrain: ["grain", 0.7, 0.6],
+  KitTiles: ["tiles", 0.6, 0.3], KitChecker: ["checker", 0.6, 0.45], KitCarpet: ["carpet", 1, 1], KitFabric: ["fabric", 0.9, 0.95],
+  KitLeaf: ["leaves", 0.8, 0.85], KitGrass: ["grass", 0.9, 1], KitPavers: ["pavers", 0.9, 0.86], KitAsphalt: ["asphalt", 0.9, 0.9],
+  KitStone: ["stone", 0.8, 0.88], KitRock: ["rock", 0.9, 0.95], KitSiding: ["siding", 0.8, 0.85], KitShingles: ["shingles", 1, 0.85],
+  KitPolish: [null, 0, 0.25, 0.05], KitMetal: [null, 0, 0.32, 0.6],
 };
 
 /** give a set/prop material its texture, bump and reflectance (by glTF material name) */

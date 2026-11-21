@@ -4,7 +4,8 @@ import { spawn, spawnSync } from "node:child_process";
 import { createReadStream, existsSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { dirname, extname, join, normalize, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
-import { parseTopic, pickTopic, slugify, topicPrompt } from "./topics.mjs";
+import { scenesText } from "../../core/scripts/scenes.mjs";
+import { formatOf, listSeries, parseTopic, pickTopic, resolveSeries, slugify, topicPrompt } from "./topics.mjs";
 
 export const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const OUTPUTS = join(ROOT, "outputs");
@@ -73,6 +74,7 @@ function summary(name, { full = false } = {}) {
   const out = {
     name,
     title: story.title || name,
+    series: story.series || null,
     lang: story.lang || null,
     lines: story.lines.length,
     words,
@@ -162,7 +164,7 @@ const AGENTS = {
   agy: {
     bin: "agy",
     run: (prompt, model) => ["--mode", "accept-edits", "--print-timeout", "30m", ...(model ? ["--model", model] : []), "-p", prompt],
-    ask: (prompt, model) => ["--mode", "plan", "--disable-slash-commands", "--print-timeout", "60s", ...(model ? ["--model", model] : []), "-p", prompt],
+    ask: (prompt, model) => ["--mode", "plan", "--disable-slash-commands", "--print-timeout", "120s", ...(model ? ["--model", model] : []), "-p", prompt],
     // `agy models` prints "<id>\t<label>" lines
     list: async () => (await capture("agy", ["models"])).split("\n").map((l) => l.split("\t")).filter(([id, label]) => id && label && /^[\w.-]+$/.test(id)).map(([id, label]) => ({ id, label: label.trim() })),
   },
@@ -251,21 +253,38 @@ function autoName(title, idea) {
   }
 }
 
-function storyPrompt({ name, title, lang, idea }) {
+function resolveSeriesOr400(id) {
+  try { return resolveSeries(id); }
+  catch (e) { throw Object.assign(e, { status: 400 }); }
+}
+
+function storyPrompt({ name, title, lang, idea, series }) {
   const km = lang === "km";
-  return `You are writing a new film in this repository of 3D blocky story films. The folder outputs/${name}/ was just scaffolded from core/template and still holds the template story and shots.
+  const s = resolveSeriesOr400(series);
+  const fmt = formatOf(s);
+  const castDesc = (s.cast || []).map((c) => `A.${c.key} = ${c.name} (${c.role})`).join(", ");
+  const dogs = (s.cast || []).filter((c) => c.dog).map((c) => `A.${c.key}`);
+  const dogNote = dogs.length
+    ? ` ${dogs.join(", ")} is a dog actor: only the dog clips (Idle, Walk, Run, Sit, Bark, Beg, Sleep) and dog faces (neutral, happy, sad, shock, sleep), placed with put() or place().pose().face() like the others.`
+    : "";
+  return `You are writing a new film in this repository of 3D blocky story films. The folder outputs/${name}/ was just scaffolded from core/template for the "${s.label}" series and still holds the template story and shots.
 
 Film folder: outputs/${name}
+Series: ${s.label} ("series": "${s.id}")
 Title: ${title || "none given: choose a short, catchy title that fits the story and set it as \"title\" in story.json"}
 Language: ${km ? 'Khmer ("lang": "km")' : 'English ("lang": "en")'}
 Idea: ${idea || (title ? "Invent an original story that fits the title." : "Invent an original story.")}
 
-Steps:
-1. Read AGENTS.md (rules, story.json fields, engine reference and lessons), analysis/ANALYSIS.md (the story template), the exports of core/engine/stage.js, and one finished film as a reference: outputs/dream-rain/story/story.json and outputs/dream-rain/film.js.
-2. Write outputs/${name}/story/story.json: 2–3 minutes of first-person narration by Zero (${km ? "Khmer text sized to 2–3 minutes when spoken" : "about 350–520 English words"}). Rule hook in the first 4 s, a list of examples, "my name is Zero", the turn at 40–60 %, twists at 60–90 %, a cliffhanger or reversal at the end. Add "cuts" words so shots average 1.6–2.1 s, and use "big", "mood", "hits", "pops", "flash" and "sfx" where they help. ${title ? "Keep the title" : "Set the title you chose"}, set "names" (every name captions must keep capitalised) and "lang": "${km ? "km" : "en"}".
-3. Write outputs/${name}/film.js: one staged shot for every cut id (each line id, "<id>.1", "<id>.2"… for its cuts, and "tail"). Every shot gets a camera move and uses only what core/stage.js exports. Film-only characters go in "cast", film-only helpers stay in film.js. Shots must be pure functions of t (no Math.random, no clocks).
+Places to stage it. Built-in sets: home (family living room + kitchen, HM / CAM_HOME / HOME_SEATS), cafe (lover, CF / CAM_CAFE / CAFE_SEATS), town, house, room, forest, highway (SUV cabin). Kit scenes (env "<id> day|dusk|night", use const S = useScene("<id>") then S.shot(t, u, cam), S.sit(actor, seat, clip, t, face), S.put(actor, mark, clip, t, face), S.frame(...)):
+${scenesText(s.id) || "none"}
+Use these existing places. Only if the story truly needs a place none of them can play, add ONE new layout core/scenes/<id>.json built only from kit props (see "Scene kit" in AGENTS.md; no engine code) — that file is the only allowed change outside the film folder.
 
-Rules: change only files inside outputs/${name}/. Do not run narrate, voice, plan, audio, shots or render, and do not change core/, voices/ or other films. Never read .env.local. The story is original, and the family is fixed: Zero (narrator), Zeebra (elder brother), Luna (mother), Zip (father).
+Steps:
+1. Read AGENTS.md (rules, story.json fields, engine reference and lessons), core/series/${s.id}.json, the exports of core/engine/stage.js, and one finished film as a reference: outputs/road-trip-playlist/story/story.json and outputs/road-trip-playlist/film.js.
+2. Write outputs/${name}/story/story.json: 62–75 seconds of first-person narration (never under 61 s: TikTok only monetizes videos over a minute) by ${s.narrator.name} (${km ? "Khmer text sized to 62–75 seconds when spoken" : "about 175–200 English words"}) in the ${fmt.label} format. ${fmt.shape} Add "cuts" words so shots average 1.6–2.1 s, and use "big", "mood", "hits", "pops", "flash" and "sfx" where they help. ${title ? "Keep the title" : "Set the title you chose"}, set "series": "${s.id}", "names" (include ${JSON.stringify(s.names)} plus any other proper names captions must keep capitalised) and "lang": "${km ? "km" : "en"}".
+3. Write outputs/${name}/film.js: one staged shot for every cut id (each line id, "<id>.1", "<id>.2"… for its cuts, and "tail"). Every shot gets a camera move and uses only what core/stage.js exports.${dogNote} Film-only characters go in "cast", film-only helpers stay in film.js. Shots must be pure functions of t (no Math.random, no clocks).
+
+Rules: change only files inside outputs/${name}/ (plus at most one new core/scenes/<id>.json, as above). Do not run narrate, voice, plan, audio, shots or render, and do not change other core/ files, voices/ or other films. Never read .env.local. The story is original. Use ONLY this series' cast: ${castDesc}. Do NOT use the old family (Zero, Zeebra, Luna, Zip).
 
 When you finish, print a short summary: number of lines, words and cuts, and the main characters.`;
 }
@@ -295,45 +314,51 @@ function takenTopics(avoid = []) {
 }
 
 /** a topic from the agent (read-only), or from the built-in list */
-async function nextTopic({ agent = null, model = null, avoid = [] } = {}) {
+async function nextTopic({ agent = null, model = null, avoid = [], series = null } = {}) {
+  const s = resolveSeriesOr400(series);
   const { takenNames, takenTitles } = takenTopics(avoid);
-  if (!agent) return { ...pickTopic({ takenNames, takenTitles }), source: "builtin" };
-  const prompt = topicPrompt({ takenNames: [...takenNames], takenTitles: [...takenTitles] });
-  const out = await capture(AGENTS[agent].bin, AGENTS[agent].ask(prompt, model || null), 60000);
-  return { ...parseTopic(out, takenNames), source: agent };
+  if (!agent) return { ...pickTopic({ series: s.id, takenNames, takenTitles }), source: "builtin" };
+  const prompt = topicPrompt({ series: s.id, takenNames: [...takenNames], takenTitles: [...takenTitles] });
+  const out = await capture(AGENTS[agent].bin, AGENTS[agent].ask(prompt, model || null), 120000);
+  return { ...parseTopic(out, takenNames), series: s.id, source: agent };
 }
 
-/** npm run film new, then "lang" in story.json and the idea in meta.json */
-function scaffold({ name, title, lang, idea = "" }) {
-  const r = spawnSync(process.execPath, [FILM_CLI, "new", name, title || name], { cwd: ROOT, encoding: "utf8" });
+/** npm run film new, then "series" + "lang" in story.json and the idea in meta.json */
+function scaffold({ name, title, lang, idea = "", series = null }) {
+  const s = resolveSeriesOr400(series);
+  const r = spawnSync(process.execPath, [FILM_CLI, "new", name, title || name, "--series", s.id], { cwd: ROOT, encoding: "utf8" });
   if (r.status !== 0) throw Object.assign(new Error((r.stderr || r.stdout).trim()), { status: 500 });
   // new films use the /my-editor voice clone, picked by "lang"
   const storyPath = join(OUTPUTS, name, "story/story.json");
-  writeFileSync(storyPath, JSON.stringify({ ...readJson(storyPath), lang }, null, 2) + "\n");
+  writeFileSync(storyPath, JSON.stringify({ ...readJson(storyPath), series: s.id, lang }, null, 2) + "\n");
   if (idea.trim()) {
     const metaPath = join(OUTPUTS, name, "meta.json");
-    writeFileSync(metaPath, JSON.stringify({ ...readJson(metaPath), idea: idea.trim() }, null, 2) + "\n");
+    writeFileSync(metaPath, JSON.stringify({ ...readJson(metaPath), series: s.id, idea: idea.trim() }, null, 2) + "\n");
   }
 }
 
 // ---------------------------------------------------------------- autopilot
 // topic -> scaffold -> agent writes story.json and film.js -> build (narrate, plan, audio, check, render),
-// for `count` films in a row (0 = until stopped), without asking for confirmation at any step.
+// for `count` films (0 = until stopped), without asking for confirmation at any step.
+// Up to `parallel` agents write films at the same time; builds run one at a time (the render fills the CPU).
 let auto = null;
-const publicAuto = () => auto && { ...auto, done: undefined, job: auto.job ? publicJob(auto.job) : null, log: auto.log.slice(-200) };
+const publicAuto = () => auto && { ...auto, done: undefined, running: undefined, signal: undefined, job: auto.job ? publicJob(auto.job) : null, log: auto.log.slice(-200) };
 
 export function autoState() { return publicAuto(); }
 
-export async function startAuto({ agent = null, model = null, lang = "en", count = 1, topicAgent = true } = {}) {
+export async function startAuto({ agent = null, model = null, lang = "en", count = 1, parallel = 3, topicAgent = true, series = null } = {}) {
   if (auto?.status === "running") throw Object.assign(new Error("Autopilot is already running"), { status: 409 });
   if (!["en", "km"].includes(lang)) throw Object.assign(new Error("lang must be en or km"), { status: 400 });
+  const s = resolveSeriesOr400(series);
   count = Math.max(0, Math.min(50, Number.isFinite(+count) ? Math.floor(+count) : 1));
+  parallel = Math.max(1, Math.min(6, Number.isFinite(+parallel) ? Math.floor(+parallel) : 3));
+  if (count) parallel = Math.min(parallel, count);
   // the story needs an agent: the given one, else the first installed one
   if (!agent) agent = (await agents()).find((a) => a.installed)?.name;
   if (!agent) throw Object.assign(new Error("No AI agent is installed (STUDIO_AGENTS)"), { status: 400 });
   const err = await agentError(agent, model);
   if (err) throw Object.assign(new Error(err), { status: 400 });
-  const state = { status: "running", agent, model, lang, count, phase: "topic", film: null, job: null, films: [], log: [], startedAt: Date.now(), endedAt: null, stopping: false };
+  const state = { status: "running", agent, model, lang, series: s.id, count, parallel, running: new Set(), signal: null, phase: "topic", film: null, job: null, films: [], log: [], startedAt: Date.now(), endedAt: null, stopping: false };
   auto = state;
   state.done = runAuto(state, { topicAgent })
     .catch((e) => note(state, `✗ ${e.message}`))
@@ -353,7 +378,8 @@ export const autoDone = () => auto?.done ?? Promise.resolve();
 export function stopAuto() {
   if (auto?.status !== "running") return publicAuto();
   auto.stopping = true;
-  auto.job?.child?.kill("SIGTERM");
+  for (const job of auto.running) job.child?.kill("SIGTERM");
+  auto.signal?.();
   return publicAuto();
 }
 
@@ -367,60 +393,111 @@ export const autoHooks = new Set();
 
 async function runAuto(state, { topicAgent }) {
   const seen = [];
+  const queue = []; // written films waiting for their build
+  let started = 0;
   let failures = 0;
-  for (let i = 0; !state.stopping && (state.count === 0 || i < state.count); i++) {
-    // 1. topic: ask the agent, fall back to the built-in list
-    state.phase = "topic";
-    state.film = null;
-    let topic;
-    try {
-      topic = await nextTopic({ agent: topicAgent ? state.agent : null, model: state.model, avoid: seen });
-    } catch (e) {
-      note(state, `topic from ${state.agent} failed (${e.message}); using the built-in list`);
-      topic = await nextTopic({ avoid: seen });
-    }
-    if (state.stopping) break;
-    const name = autoName(topic.name, topic.idea);
-    seen.push(name, topic.title);
-    const entry = { name, title: topic.title, idea: topic.idea, source: topic.source, status: "running", step: "new" };
-    state.films.push(entry);
-    state.film = name;
-    note(state, `▶ ${name}: ${topic.title} (${topic.source})`);
+  let writers = state.parallel;
+  let waiters = [];
+  const signal = (state.signal = () => waiters.splice(0).forEach((fn) => fn()));
+  const wait = () => new Promise((ok) => waiters.push(ok));
+  const more = () => !state.stopping && failures < 3 && (state.count === 0 || started < state.count);
 
-    // 2. scaffold outputs/<name>/
-    scaffold({ name, title: topic.title, lang: state.lang, idea: topic.idea });
-
-    // 3. the agent writes story.json and film.js
-    state.phase = entry.step = "write";
-    const storyPath = join(OUTPUTS, name, "story/story.json");
-    const before = readFileSync(storyPath, "utf8");
-    state.job = startAgent(name, state.agent, state.model, { title: topic.title, lang: state.lang, idea: topic.idea });
-    await state.job.done;
-    const wrote = state.job.status === "done" && readFileSync(storyPath, "utf8") !== before && readJson(storyPath)?.lines?.length > 0;
-    if (!wrote) {
-      entry.status = state.stopping ? "stopped" : "failed";
-      note(state, `✗ ${name}: the agent ${state.job.status === "done" ? "did not write story.json" : state.job.status}`);
-      if (state.stopping || ++failures >= 3) break;
-      continue;
-    }
-
-    // 4. narrate -> plan -> audio -> check -> render
-    state.phase = entry.step = "build";
-    state.job = startStep(name, "build");
-    await state.job.done;
-    if (state.job.status !== "done") {
-      entry.status = state.stopping ? "stopped" : "failed";
-      note(state, `✗ ${name}: build ${state.job.status}`);
-      if (state.stopping || ++failures >= 3) break;
-      continue;
-    }
-    failures = 0;
-    entry.status = "done";
+  // state.job / film / phase follow the build when one runs, else the newest writer
+  const focus = () => {
+    const list = [...state.running];
+    const job = list.find((j) => j.step === "build") ?? list.at(-1) ?? null;
+    state.job = job;
+    state.film = job?.film ?? null;
+    state.phase = job ? (job.step === "build" ? "build" : "write") : "topic";
+  };
+  const track = (job) => {
+    state.running.add(job);
+    focus();
+    job.done.then(() => { state.running.delete(job); focus(); });
+    return job;
+  };
+  const fail = (entry, why) => {
+    entry.status = state.stopping ? "stopped" : "failed";
     entry.step = null;
-    entry.render = `outputs/${name}/renders/${name}.mp4`;
-    note(state, `✓ ${name}: ${entry.render}`);
-  }
-  if (failures >= 3) note(state, "three films failed in a row: autopilot stops");
+    note(state, `✗ ${entry.name}: ${why}`);
+    if (!state.stopping && ++failures === 3) note(state, "three films failed in a row: no new films are started");
+    signal();
+  };
+
+  // topic + scaffold, one writer at a time so two films never get the same topic
+  let lock = Promise.resolve();
+  const claim = () => {
+    const p = lock.then(async () => {
+      if (!more()) return null;
+      started++;
+      let topic;
+      try {
+        topic = await nextTopic({ agent: topicAgent ? state.agent : null, model: state.model, avoid: seen, series: state.series });
+      } catch (e) {
+        note(state, `topic from ${state.agent} failed (${e.message}); using the built-in list`);
+        topic = await nextTopic({ avoid: seen, series: state.series });
+      }
+      if (state.stopping) return null;
+      const name = autoName(topic.name, topic.idea);
+      seen.push(name, topic.title);
+      const entry = { name, title: topic.title, idea: topic.idea, source: topic.source, status: "running", step: "new" };
+      state.films.push(entry);
+      note(state, `▶ ${name}: ${topic.title} (${state.series}, ${topic.source})`);
+      scaffold({ name, title: topic.title, lang: state.lang, idea: topic.idea, series: state.series });
+      return entry;
+    });
+    lock = p.catch(() => {});
+    return p;
+  };
+
+  // the agent writes story.json and film.js, then the film joins the build queue
+  const writer = async () => {
+    try {
+      for (;;) {
+        while (queue.length >= state.parallel && more()) await wait();
+        const entry = await claim();
+        if (!entry) return;
+        entry.step = "write";
+        const storyPath = join(OUTPUTS, entry.name, "story/story.json");
+        const before = readFileSync(storyPath, "utf8");
+        const job = track(startAgent(entry.name, state.agent, state.model, { title: entry.title, lang: state.lang, idea: entry.idea, series: state.series }));
+        await job.done;
+        const wrote = job.status === "done" && readFileSync(storyPath, "utf8") !== before && readJson(storyPath)?.lines?.length > 0;
+        if (!wrote) { fail(entry, `the agent ${job.status === "done" ? "did not write story.json" : job.status}`); continue; }
+        entry.step = "queued";
+        queue.push(entry);
+        signal();
+      }
+    } catch (e) {
+      note(state, `✗ ${e.message}`);
+      failures = 3;
+    } finally {
+      writers--;
+      signal();
+    }
+  };
+
+  // narrate -> plan -> audio -> check -> render, one film at a time
+  const builder = async () => {
+    for (;;) {
+      while (!queue.length && writers > 0) await wait();
+      if (state.stopping || !queue.length) return;
+      const entry = queue.shift();
+      signal();
+      entry.step = "build";
+      const job = track(startStep(entry.name, "build"));
+      await job.done;
+      if (job.status !== "done") { fail(entry, `build ${job.status}`); continue; }
+      failures = 0;
+      entry.status = "done";
+      entry.step = null;
+      entry.render = `outputs/${entry.name}/renders/${entry.name}.mp4`;
+      note(state, `✓ ${entry.name}: ${entry.render}`);
+    }
+  };
+
+  await Promise.all([...Array.from({ length: state.parallel }, writer), builder()]);
+  for (const f of state.films) if (f.status === "running") { f.status = "stopped"; f.step = null; }
 }
 
 // ---------------------------------------------------------------- http
@@ -470,13 +547,17 @@ export async function handler(req, res, next) {
 
     if (p === "/api/agents" && req.method === "GET") return send(res, 200, await agents());
 
+    if (p === "/api/series" && req.method === "GET") {
+      return send(res, 200, listSeries().map(({ id, label, narrator, cast, format }) => ({ id, label, narrator, cast, format })));
+    }
+
     if (p === "/api/topic" && req.method === "POST") {
-      const { agent = null, model = null, avoid = [] } = await body(req);
+      const { agent = null, model = null, avoid = [], series = null } = await body(req);
       if (agent) {
         const err = await agentError(agent, model);
         if (err) return send(res, 400, { error: err });
       }
-      return send(res, 200, await nextTopic({ agent, model, avoid }));
+      return send(res, 200, await nextTopic({ agent, model, avoid, series }));
     }
 
     if (p === "/api/auto" && req.method === "GET") return send(res, 200, autoState());
@@ -484,7 +565,7 @@ export async function handler(req, res, next) {
     if (p === "/api/auto/stop" && req.method === "POST") return send(res, 200, stopAuto());
 
     if (p === "/api/films" && req.method === "POST") {
-      const { name: rawName, title: rawTitle, lang = "en", agent = null, model = null, idea: rawIdea = "" } = await body(req);
+      const { name: rawName, title: rawTitle, lang = "en", agent = null, model = null, idea: rawIdea = "", series = null } = await body(req);
       const idea = String(rawIdea || "").slice(0, 4000);
       const given = String(rawTitle || "").trim().slice(0, 200);
       // with an agent the folder name and title may be left empty: the name comes from the title or idea, the agent picks the title
@@ -492,12 +573,13 @@ export async function handler(req, res, next) {
       if (!NAME.test(name || "")) return send(res, 400, { error: "Use lowercase letters, numbers and dashes for the name" });
       if (existsSync(join(OUTPUTS, name))) return send(res, 409, { error: `outputs/${name} already exists` });
       if (!["en", "km"].includes(lang)) return send(res, 400, { error: "lang must be en or km" });
+      const s = resolveSeriesOr400(series);
       if (agent) {
         const err = await agentError(agent, model);
         if (err) return send(res, 400, { error: err });
       }
-      scaffold({ name, title: given || name, lang, idea });
-      const job = agent ? publicJob(startAgent(name, agent, model || null, { title: given || null, lang, idea })) : null;
+      scaffold({ name, title: given || name, lang, idea, series: s.id });
+      const job = agent ? publicJob(startAgent(name, agent, model || null, { title: given || null, lang, idea, series: s.id })) : null;
       return send(res, 201, { film: summary(name), job });
     }
 

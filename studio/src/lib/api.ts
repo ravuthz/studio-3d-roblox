@@ -26,6 +26,7 @@ export interface FilmFiles {
 export interface FilmSummary {
   name: string
   title: string
+  series: string | null
   lang: "en" | "km" | null
   lines: number
   words: number
@@ -48,9 +49,17 @@ export interface SnapshotFrame {
 }
 
 export interface FilmDetail extends FilmSummary {
-  story: { title: string; names?: string[]; lang?: string; lines: StoryLine[] }
+  story: { title: string; series?: string; names?: string[]; lang?: string; lines: StoryLine[] }
   plan: { order: string[]; cuts: Record<string, number>; duration: number; voEnd: number } | null
   snapshots: { runs: number; updatedAt: number | null; frames: SnapshotFrame[] } | null
+}
+
+export interface SeriesInfo {
+  id: string
+  label: string
+  narrator: { key: string; name: string; role: string }
+  cast: { key: string; name: string; role: string; dog?: boolean }[]
+  format: { label: string; shape: string }
 }
 
 export type Step = "narrate" | "voice" | "plan" | "audio" | "check" | "shots" | "render" | "build"
@@ -70,6 +79,7 @@ export interface Agent {
 export interface NewFilm {
   name: string
   title: string
+  series?: string | null
   lang: "en" | "km"
   agent: string | null
   /** null = the agent CLI's own default model */
@@ -81,6 +91,7 @@ export interface FilmTopic {
   name: string
   title: string
   idea: string
+  series?: string
   source: string
 }
 
@@ -90,7 +101,7 @@ export interface AutoFilm {
   idea: string
   source: string
   status: "running" | "done" | "failed" | "stopped"
-  step: "new" | "write" | "build" | null
+  step: "new" | "write" | "queued" | "build" | null
   render?: string
 }
 
@@ -98,6 +109,7 @@ export interface AutoState {
   status: "running" | "done" | "stopped"
   agent: string
   model: string | null
+  series?: string
   lang: "en" | "km"
   /** 0 = until stopped */
   count: number
@@ -136,10 +148,11 @@ export const api = {
   films: () => request<FilmSummary[]>("/api/films"),
   film: (name: string) => request<FilmDetail>(`/api/films/${name}`),
   agents: () => request<Agent[]>("/api/agents"),
-  topic: (opts: { agent?: string | null; model?: string | null; avoid?: string[] } = {}) =>
+  series: () => request<SeriesInfo[]>("/api/series"),
+  topic: (opts: { agent?: string | null; model?: string | null; avoid?: string[]; series?: string | null } = {}) =>
     request<FilmTopic>("/api/topic", { method: "POST", body: JSON.stringify(opts) }),
   auto: () => request<AutoState | null>("/api/auto"),
-  startAuto: (opts: { agent?: string | null; model?: string | null; lang?: "en" | "km"; count?: number }) =>
+  startAuto: (opts: { agent?: string | null; model?: string | null; lang?: "en" | "km"; count?: number; series?: string | null }) =>
     request<AutoState>("/api/auto", { method: "POST", body: JSON.stringify(opts) }),
   stopAuto: () => request<AutoState | null>("/api/auto/stop", { method: "POST" }),
   create: (film: NewFilm) =>
@@ -181,9 +194,9 @@ export function fmtAgo(ms: number | null) {
   return `${Math.round(s / 86400)} d ago`
 }
 
-/** The default film length is 2–3 minutes of narration. */
+/** The default film length is 30–60 seconds of narration. */
 export const lengthStatus = (voEnd: number | null) =>
-  voEnd == null ? "none" : voEnd < 120 ? "short" : voEnd > 180 ? "long" : "ok"
+  voEnd == null ? "none" : voEnd < 30 ? "short" : voEnd > 60 ? "long" : "ok"
 
 export type StageState = "missing" | "stale" | "fresh"
 

@@ -5,7 +5,7 @@ import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { api, type AutoState } from "@/lib/api"
 
-const PHASE = { topic: "picking the next topic", write: "writing story and shots", build: "narrate → render" } as const
+const STEPS = [["write", "writing"], ["queued", "waiting"], ["build", "rendering"]] as const
 
 /** live autopilot progress in the sidebar footer; polls while it runs */
 export function AutopilotStatus({ onChange }: { onChange: () => void }) {
@@ -38,7 +38,11 @@ export function AutopilotStatus({ onChange }: { onChange: () => void }) {
   if (!state) return null
   const done = state.films.filter((f) => f.status === "done").length
   const running = state.status === "running"
-  const film = state.films.at(-1)
+  const film = state.films.find((f) => f.step === "build") ?? state.films.at(-1)
+  const steps = STEPS.map(([step, label]) => [state.films.filter((f) => f.step === step).length, label] as const)
+    .filter(([n]) => n)
+    .map(([n, label]) => `${n} ${label}`)
+    .join(" · ")
 
   return (
     <div className="mx-2 grid gap-1.5 rounded-md border bg-card p-2 text-xs group-data-[collapsible=icon]:hidden">
@@ -64,7 +68,7 @@ export function AutopilotStatus({ onChange }: { onChange: () => void }) {
           <span className="truncate font-mono">{film.name}</span>
         </a>
       )}
-      {running && state.phase && <span className="text-muted-foreground">{PHASE[state.phase]}</span>}
+      {running && <span className="text-muted-foreground">{steps || "picking the next topic"}</span>}
     </div>
   )
 }

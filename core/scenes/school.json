@@ -1,0 +1,386 @@
+{
+ "id": "school",
+ "label": "Classroom",
+ "series": [
+  "family"
+ ],
+ "about": "Pip's classroom: chalkboard on the back wall, teacher desk on the right, 3x3 student desks facing the board (front panels hide seated legs from cameras near the board), windows on the left wall, door on the right, lockers and shelves on the front wall for reverse shots.",
+ "shell": {
+  "kind": "room",
+  "x": [
+   -24,
+   24
+  ],
+  "z": [
+   -18,
+   26
+  ],
+  "height": 16,
+  "wainscot": "wall2",
+  "openings": [
+   {
+    "wall": "left",
+    "type": "window",
+    "at": -6,
+    "y": 8.5,
+    "w": 10,
+    "h": 7,
+    "view": "garden"
+   },
+   {
+    "wall": "left",
+    "type": "window",
+    "at": 9,
+    "y": 8.5,
+    "w": 10,
+    "h": 7,
+    "view": "garden"
+   },
+   {
+    "wall": "right",
+    "type": "door",
+    "at": 17,
+    "w": 5,
+    "h": 9.5
+   }
+  ]
+ },
+ "palette": "school",
+ "props": [
+  {
+   "prop": "chalkboard",
+   "x": -2,
+   "y": 8.4,
+   "z": -17.7,
+   "w": 18,
+   "h": 6,
+   "text": "SCIENCE DAY!\nPlants need sun + water"
+  },
+  {
+   "prop": "clock",
+   "x": 12,
+   "y": 13,
+   "z": -17.8
+  },
+  {
+   "prop": "poster",
+   "x": -17,
+   "y": 9,
+   "z": -17.9,
+   "w": 3.2,
+   "h": 4.2,
+   "text": "READ!",
+   "color": "accent2"
+  },
+  {
+   "prop": "poster",
+   "x": 14,
+   "y": 8,
+   "z": -17.9,
+   "w": 3.6,
+   "h": 4.2,
+   "text": "A B C",
+   "color": "#3d5a80"
+  },
+  {
+   "prop": "teacherDesk",
+   "x": 15,
+   "z": -11,
+   "seats": [
+    "teacher"
+   ]
+  },
+  {
+   "prop": "plant",
+   "x": -20.5,
+   "z": -14.5,
+   "size": 1.1
+  },
+  {
+   "prop": "desk",
+   "x": -10,
+   "z": 0,
+   "ry": 180,
+   "seats": [
+    "deskA"
+   ]
+  },
+  {
+   "prop": "desk",
+   "x": -2,
+   "z": 0,
+   "ry": 180,
+   "seats": [
+    "pip"
+   ],
+   "chairColor": "accent2"
+  },
+  {
+   "prop": "desk",
+   "x": 6,
+   "z": 0,
+   "ry": 180,
+   "seats": [
+    "deskB"
+   ]
+  },
+  {
+   "prop": "desk",
+   "x": -10,
+   "z": 7,
+   "ry": 180,
+   "seats": [
+    "deskC"
+   ]
+  },
+  {
+   "prop": "desk",
+   "x": -2,
+   "z": 7,
+   "ry": 180,
+   "seats": [
+    "deskD"
+   ]
+  },
+  {
+   "prop": "desk",
+   "x": 6,
+   "z": 7,
+   "ry": 180,
+   "seats": [
+    "deskE"
+   ]
+  },
+  {
+   "prop": "desk",
+   "x": -10,
+   "z": 14,
+   "ry": 180,
+   "seats": [
+    "deskF"
+   ]
+  },
+  {
+   "prop": "desk",
+   "x": -2,
+   "z": 14,
+   "ry": 180,
+   "seats": [
+    "deskG"
+   ]
+  },
+  {
+   "prop": "desk",
+   "x": 6,
+   "z": 14,
+   "ry": 180,
+   "seats": [
+    "deskH"
+   ]
+  },
+  {
+   "prop": "lockers",
+   "x": 4,
+   "z": 24.8,
+   "ry": 180,
+   "n": 7
+  },
+  {
+   "prop": "bookshelf",
+   "x": -14,
+   "z": 24.6,
+   "ry": 180
+  },
+  {
+   "prop": "poster",
+   "x": -20,
+   "y": 9,
+   "z": 25.9,
+   "ry": 180,
+   "w": 3,
+   "h": 4,
+   "text": "2+2",
+   "color": "#e9c46a",
+   "color2": "#264653"
+  },
+  {
+   "prop": "art",
+   "x": 17,
+   "y": 9,
+   "z": 25.8,
+   "ry": 180,
+   "w": 4,
+   "h": 3
+  },
+  {
+   "prop": "ceilingLight",
+   "x": -8,
+   "z": -6
+  },
+  {
+   "prop": "ceilingLight",
+   "x": 8,
+   "z": -6
+  },
+  {
+   "prop": "ceilingLight",
+   "x": -8,
+   "z": 10
+  },
+  {
+   "prop": "ceilingLight",
+   "x": 8,
+   "z": 10
+  }
+ ],
+ "marks": {
+  "board": [
+   -3,
+   -14.5,
+   0
+  ],
+  "teacher": [
+   15,
+   -13.6,
+   0
+  ],
+  "front": [
+   2,
+   -7,
+   0
+  ],
+  "aisle": [
+   2,
+   4,
+   180
+  ],
+  "door": [
+   17,
+   15,
+   -90
+  ],
+  "lockers": [
+   4,
+   20.5,
+   180
+  ]
+ },
+ "cams": {
+  "wide": {
+   "from": [
+    16,
+    12,
+    24
+   ],
+   "to": [
+    -2,
+    4,
+    -6
+   ],
+   "fov": 50
+  },
+  "board": {
+   "from": [
+    2,
+    7.2,
+    8
+   ],
+   "to": [
+    -2,
+    6.8,
+    -17
+   ],
+   "end": [
+    2,
+    7.0,
+    5.5
+   ],
+   "fov": 46
+  },
+  "teacher": {
+   "from": [
+    11,
+    7.2,
+    1.5
+   ],
+   "to": [
+    15,
+    4.4,
+    -13.4
+   ],
+   "end": [
+    11.5,
+    7.0,
+    -0.5
+   ],
+   "fov": 46
+  },
+  "pip": {
+   "from": [
+    -1.4,
+    5.4,
+    -9.5
+   ],
+   "to": [
+    -2,
+    3.6,
+    1.7
+   ],
+   "end": [
+    -1.6,
+    5.2,
+    -7.8
+   ],
+   "fov": 44
+  },
+  "class": {
+   "from": [
+    4,
+    9.5,
+    -16
+   ],
+   "to": [
+    -2,
+    3.4,
+    8
+   ],
+   "end": [
+    3.5,
+    9.0,
+    -14
+   ],
+   "fov": 50
+  },
+  "window": {
+   "from": [
+    6,
+    6,
+    4
+   ],
+   "to": [
+    -23,
+    7,
+    -2
+   ],
+   "fov": 46
+  },
+  "door": {
+   "from": [
+    2,
+    6.5,
+    4
+   ],
+   "to": [
+    19,
+    4.4,
+    15
+   ],
+   "end": [
+    4,
+    6.3,
+    5
+   ],
+   "fov": 46
+  }
+ }
+}

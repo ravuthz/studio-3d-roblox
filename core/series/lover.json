@@ -1,0 +1,71 @@
+{
+  "id": "lover",
+  "label": "Lover",
+  "narrator": {
+    "key": "nova",
+    "name": "Nova",
+    "role": "girlfriend, first-person narrator"
+  },
+  "cast": [
+    {
+      "key": "kai",
+      "name": "Kai",
+      "role": "boyfriend"
+    },
+    {
+      "key": "nova",
+      "name": "Nova",
+      "role": "girlfriend (narrator)"
+    }
+  ],
+  "names": [
+    "Kai",
+    "Nova"
+  ],
+  "format": {
+    "label": "rom-com skit",
+    "shape": "Grounded, snappy 62–75 second romantic comedy skit (about 175–200 words; never under 61 seconds — TikTok only monetizes videos over a minute) told in Nova's playful first-person voice (no magic town rule and no \"In this town\"). Hook in the first 0–3 s with a relatable couple mishap, petty bet, or how-we-met moment. Quick setup of what Kai and Nova each think is happening, one or two escalating comic beats with expressive reactions, then a sweet reveal or punchline that flips the joke into charm, and a short button line. Keep it to one or two places, best of all the cafe set (env \"cafe\"). Quote both Kai and Nova inside Nova's single-voice narration, cutting directly to the speaker with the Talk clip."
+  },
+  "topics": [
+    {
+      "name": "obvious-birthday-hint",
+      "title": "Kai completely missed my obvious birthday hint",
+      "idea": "All week Nova drops neon-bright clues down the block about the tiny necklace she wants, while Kai nods looking way too proud of himself. On date night he hands her a huge box on the porch, brags about his elite listening skills, and unveils a waffle iron—until she lifts the lid and finds the exact necklace taped inside."
+    },
+    {
+      "name": "strangers-date-night",
+      "title": "We pretended not to know each other on date night",
+      "idea": "Bored of their usual Friday walk, Nova dares Kai to meet her down the street and act like total strangers flirting from scratch. Kai invents a ridiculous accent, Nova counters with a fake billionaire backstory, and passing neighbors stop to watch them bicker—until Kai breaks character because he cannot stop laughing at his own fake name."
+    },
+    {
+      "name": "no-jacket-bet",
+      "title": "Kai swore we did not need a jacket",
+      "idea": "Heading out for a dusk walk toward the forest clearing, Kai checks the sky and bets dinner it will not rain a single drop. Five minutes later the chill hits, Kai insists it is just refreshing mist, and by round three he is shivering dramatically while Nova stays cozy in her scarf—until he hands over his last warm snack just to borrow one sleeve."
+    },
+    {
+      "name": "car-music-truce",
+      "title": "Our road trip music truce lasted ten minutes",
+      "idea": "On a weekend highway drive in the SUV, Kai and Nova sign a strict one-song-each peace treaty over the dashboard stereo. Kai sneaks in a twelve-minute guitar epic, Nova fires back with full-volume heartbreak ballads, and neither will blink—until an embarrassing old pop song shuffles on and they both belt the chorus in perfect harmony."
+    },
+    {
+      "name": "who-fell-first",
+      "title": "Our endless debate over who fell first",
+      "idea": "Walking past the street corner where they met, Kai casually claims Nova was obsessed with him from day one. Nova brings three escalating receipts from their first week—him waiting twenty minutes outside her door, memorizing her snack order, and tripping over the curb while trying to wave cool—until Kai admits she is right, and she smiles because she noticed every one."
+    },
+    {
+      "name": "midnight-pancake-heist",
+      "title": "We tried to sneak out for midnight pancakes",
+      "idea": "Hours after swearing they are starting a responsible early bedtime, Nova catches Kai tiptoeing out of the room at midnight. Instead of stopping him, she joins the covert operation down the quiet street, dodging bright streetlamps like spies—only to realize they are both sneaking back to their own porch for a warm stack of pancakes."
+    },
+    {
+      "name": "hero-vs-tiny-spider",
+      "title": "Kai promised to handle the tiny spider",
+      "idea": "Nova spots one tiny spider near the bedroom window and Kai puffs up like an action hero promising to escort it outside in five seconds. Round one he jumps at his own shadow, round two he misses twice with a textbook, and round three he leaps straight onto the bed—so Nova calmly handles it in one move while Kai claps like he coached the whole rescue."
+    },
+    {
+      "name": "wrong-text-panic",
+      "title": "I accidentally sent my hype text straight to Kai",
+      "idea": "Trying to text her best friend before their weekend drive, Nova accidentally sends Kai a wildly dramatic message about how unfairly cute he looks in his teal hoodie. She sprints down the street trying to play it cool before he checks his phone, spins three escalating cover stories on the sidewalk, and freezes when Kai casually quotes her message word for word."
+    }
+  ]
+}

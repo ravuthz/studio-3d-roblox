@@ -17,16 +17,26 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
-import { api, type Agent } from "@/lib/api"
+import { api, type Agent, type SeriesInfo } from "@/lib/api"
 import { go } from "@/lib/route"
 
 const TEMPLATE = "template"
 const CLI_DEFAULT = "cli-default"
 
-export function NewFilmDialog({ children, onCreated }: { children: ReactNode; onCreated: () => void }) {
+export function NewFilmDialog({
+  children,
+  onCreated,
+  defaultSeries,
+}: {
+  children: ReactNode
+  onCreated: () => void
+  defaultSeries?: string
+}) {
   const [open, setOpen] = useState(false)
   const [name, setName] = useState("")
   const [title, setTitle] = useState("")
+  const [seriesList, setSeriesList] = useState<SeriesInfo[]>([])
+  const [series, setSeries] = useState<string>("family")
   const [lang, setLang] = useState<"en" | "km">("en")
   const [agent, setAgentState] = useState<string>(TEMPLATE)
   const [model, setModel] = useState<string>(CLI_DEFAULT)
@@ -45,9 +55,10 @@ export function NewFilmDialog({ children, onCreated }: { children: ReactNode; on
     setModel(CLI_DEFAULT)
   }
 
-  // the allowed agents come from STUDIO_AGENTS on the server; refresh each time the dialog opens
+  // the allowed agents and series come from the server; refresh each time the dialog opens
   useEffect(() => {
     if (!open) return
+    if (defaultSeries) setSeries(defaultSeries)
     api
       .agents()
       .then((list) => {
@@ -56,7 +67,14 @@ export function NewFilmDialog({ children, onCreated }: { children: ReactNode; on
         setModel((cur) => (cur === CLI_DEFAULT || list.some((a) => a.models.some((m) => m.id === cur)) ? cur : CLI_DEFAULT))
       })
       .catch(() => setAgents([]))
-  }, [open])
+    api
+      .series()
+      .then((list) => {
+        setSeriesList(list)
+        setSeries((cur) => (list.some((s) => s.id === cur) ? cur : (list[0]?.id ?? "family")))
+      })
+      .catch(() => {})
+  }, [open, defaultSeries])
 
   async function fillTopic(withAgent: boolean) {
     setGenerating(withAgent ? "ai" : "instant")
@@ -66,6 +84,7 @@ export function NewFilmDialog({ children, onCreated }: { children: ReactNode; on
         agent: withAgent ? agent : null,
         model: withAgent && model !== CLI_DEFAULT ? model : null,
         avoid,
+        series,
       })
       setName(topic.name)
       setTitle(topic.title)
@@ -87,6 +106,7 @@ export function NewFilmDialog({ children, onCreated }: { children: ReactNode; on
         agent: useAgent ? agent : null,
         model: useAgent && model !== CLI_DEFAULT ? model : null,
         lang,
+        series,
         count: 1,
       })
       toast.success("Autopilot started", {
@@ -108,6 +128,7 @@ export function NewFilmDialog({ children, onCreated }: { children: ReactNode; on
       const { film, job } = await api.create({
         name,
         title: title.trim(),
+        series,
         lang,
         agent: useAgent ? agent : null,
         model: useAgent && model !== CLI_DEFAULT ? model : null,
@@ -169,20 +190,27 @@ export function NewFilmDialog({ children, onCreated }: { children: ReactNode; on
               as <code className="font-mono">npm run film new</code>. An AI agent can then write the story and shots.
             </DialogDescription>
           </DialogHeader>
-          <div className="grid gap-4 sm:grid-cols-[1fr_9rem]">
+          <div className="grid gap-4 sm:grid-cols-2">
             <div className="grid gap-2">
-              <Label htmlFor="film-name">
-                Folder name {useAgent && <Optional />}
-              </Label>
-              <Input
-                id="film-name"
-                placeholder={useAgent ? "from the title or idea" : "lost-shadow"}
-                value={name}
-                onChange={(e) => setName(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "-"))}
-                aria-invalid={name.length > 0 && !valid}
-                autoFocus
-                className="font-mono"
-              />
+              <Label htmlFor="film-series">Series</Label>
+              <Select value={series} onValueChange={setSeries}>
+                <SelectTrigger id="film-series" className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {(seriesList.length
+                    ? seriesList
+                    : [
+                        { id: "family", label: "Family" },
+                        { id: "lover", label: "Lover" },
+                      ]
+                  ).map((s) => (
+                    <SelectItem key={s.id} value={s.id}>
+                      {s.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="grid gap-2">
               <Label htmlFor="film-lang">Narration</Label>
@@ -198,12 +226,26 @@ export function NewFilmDialog({ children, onCreated }: { children: ReactNode; on
             </div>
           </div>
           <div className="grid gap-2">
+            <Label htmlFor="film-name">
+              Folder name {useAgent && <Optional />}
+            </Label>
+            <Input
+              id="film-name"
+              placeholder={useAgent ? "from the title or idea" : "biscuit-bath-day"}
+              value={name}
+              onChange={(e) => setName(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "-"))}
+              aria-invalid={name.length > 0 && !valid}
+              autoFocus
+              className="font-mono"
+            />
+          </div>
+          <div className="grid gap-2">
             <Label htmlFor="film-title">
               Title {useAgent ? <Optional /> : null}
             </Label>
             <Input
               id="film-title"
-              placeholder={useAgent ? `${agent} picks one if left empty` : "In this town, nobody has a shadow"}
+              placeholder={useAgent ? `${agent} picks one if left empty` : "Dad made a chore wheel"}
               value={title}
               onChange={(e) => setTitle(e.target.value)}
             />
@@ -270,7 +312,7 @@ export function NewFilmDialog({ children, onCreated }: { children: ReactNode; on
               id="film-idea"
               rows={4}
               maxLength={4000}
-              placeholder="e.g. Shadows can walk away from their owners, and Zero's shadow leaves to become famous."
+              placeholder="e.g. Mira announces bath day and Biscuit immediately vanishes."
               value={idea}
               onChange={(e) => setIdea(e.target.value)}
             />

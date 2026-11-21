@@ -1,4 +1,5 @@
 import { Clapperboard, FolderOpen, LayoutDashboard, Loader2, Plus } from "lucide-react"
+import { useEffect, useState } from "react"
 import { toast } from "sonner"
 
 import { AutopilotStatus } from "@/components/autopilot-status"
@@ -19,10 +20,29 @@ import {
   SidebarMenuSkeleton,
   SidebarRail,
 } from "@/components/ui/sidebar"
-import { api, fmtTime, type FilmSummary } from "@/lib/api"
+import { api, fmtTime, type FilmSummary, type SeriesInfo } from "@/lib/api"
 import type { Route } from "@/lib/route"
 
+/** films grouped by series (episodes numbered by creation order), then films without a series */
+function groupBySeries(films: FilmSummary[], series: SeriesInfo[]) {
+  const byAge = [...films].sort((a, b) => (a.createdAt ?? "").localeCompare(b.createdAt ?? ""))
+  const known = new Set(series.map((s) => s.id))
+  const groups: { id: string | null; label: string; films: FilmSummary[] }[] = series.map((s) => ({
+    id: s.id,
+    label: s.label,
+    films: byAge.filter((f) => f.series === s.id),
+  }))
+  const other = films.filter((f) => !f.series || !known.has(f.series))
+  if (other.length) groups.push({ id: null, label: "Other films", films: other })
+  return groups
+}
+
 export function AppSidebar({ films, route, onCreated }: { films: FilmSummary[] | null; route: Route; onCreated: () => void }) {
+  const [series, setSeries] = useState<SeriesInfo[]>([])
+  useEffect(() => {
+    api.series().then(setSeries).catch(() => {})
+  }, [])
+  const groups = films ? groupBySeries(films, series) : []
   return (
     <Sidebar collapsible="icon">
       <SidebarHeader>
@@ -59,42 +79,53 @@ export function AppSidebar({ films, route, onCreated }: { films: FilmSummary[] |
           </SidebarGroupContent>
         </SidebarGroup>
 
-        <SidebarGroup>
-          <SidebarGroupLabel>Films</SidebarGroupLabel>
-          <NewFilmDialog onCreated={onCreated}>
-            <SidebarGroupAction title="New film">
-              <Plus />
-              <span className="sr-only">New film</span>
-            </SidebarGroupAction>
-          </NewFilmDialog>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {!films &&
-                Array.from({ length: 6 }, (_, i) => (
+        {!films && (
+          <SidebarGroup>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {Array.from({ length: 6 }, (_, i) => (
                   <SidebarMenuItem key={i}>
                     <SidebarMenuSkeleton />
                   </SidebarMenuItem>
                 ))}
-              {films?.map((f) => (
-                <SidebarMenuItem key={f.name}>
-                  <SidebarMenuButton
-                    asChild
-                    isActive={route.page === "film" && route.name === f.name}
-                    tooltip={f.title}
-                  >
-                    <a href={`#/film/${f.name}`}>
-                      {f.running ? <Loader2 className="animate-spin text-brand" /> : <Clapperboard />}
-                      <span>{f.name}</span>
-                    </a>
-                  </SidebarMenuButton>
-                  <SidebarMenuBadge className="font-mono text-muted-foreground tabular-nums">
-                    {f.voEnd ? fmtTime(f.voEnd).replace(/\.\d$/, "") : "—"}
-                  </SidebarMenuBadge>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
+        {films &&
+          groups.map((g) => (
+            <SidebarGroup key={g.id ?? "other"}>
+              <SidebarGroupLabel>{g.label}</SidebarGroupLabel>
+              <NewFilmDialog onCreated={onCreated} defaultSeries={g.id ?? undefined}>
+                <SidebarGroupAction title={g.id ? `New ${g.label} episode` : "New film"}>
+                  <Plus />
+                  <span className="sr-only">New film</span>
+                </SidebarGroupAction>
+              </NewFilmDialog>
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  {g.films.map((f, i) => (
+                    <SidebarMenuItem key={f.name}>
+                      <SidebarMenuButton
+                        asChild
+                        isActive={route.page === "film" && route.name === f.name}
+                        tooltip={f.title || f.name}
+                        className="pr-12"
+                      >
+                        <a href={`#/film/${f.name}`}>
+                          {f.running ? <Loader2 className="animate-spin text-brand" /> : <Clapperboard />}
+                          <span>{g.id ? `Ep ${i + 1} · ${f.title || f.name}` : f.name}</span>
+                        </a>
+                      </SidebarMenuButton>
+                      <SidebarMenuBadge className="font-mono text-muted-foreground tabular-nums">
+                        {f.voEnd ? fmtTime(f.voEnd).replace(/\.\d$/, "") : "—"}
+                      </SidebarMenuBadge>
+                    </SidebarMenuItem>
+                  ))}
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+          ))}
       </SidebarContent>
 
       <SidebarFooter>
