@@ -7,6 +7,7 @@
 //   npm run auto -- --count 0                      keep making films until Ctrl+C
 //   npm run auto -- --count 10 --parallel 4        four agents write at once; builds still run one at a time
 //   npm run auto -- --series family --lang km --builtin-topics
+//   npm run auto -- --style pixar-disney           the film style (default: roblox; see `npm run film styles`)
 import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -23,7 +24,7 @@ const opt = (flag, fallback = null) => {
   return i >= 0 && args[i + 1] && !args[i + 1].startsWith("--") ? args[i + 1] : fallback;
 };
 if (args.includes("--help") || args.includes("-h")) {
-  console.log("npm run auto -- [--series family|lover] [--count N (0 = until stopped)] [--agent agy|codex|claude] [--model id] [--lang en|km] [--parallel N (agents writing at once, default 3)] [--builtin-topics]");
+  console.log("npm run auto -- [--series family|lover] [--style roblox|pixar-disney] [--count N (0 = until stopped)] [--agent agy|codex|claude] [--model id] [--lang en|km] [--parallel N (agents writing at once, default 3)] [--builtin-topics]");
   process.exit(0);
 }
 
@@ -43,6 +44,7 @@ process.on("SIGINT", () => {
 try {
   const state = await startAuto({
     series: opt("--series"),
+    style: opt("--style"),
     agent: opt("--agent"),
     model: opt("--model"),
     lang: opt("--lang", "en"),

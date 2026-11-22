@@ -1,9 +1,19 @@
-import { Clapperboard, FolderOpen, LayoutDashboard, Loader2, Plus } from "lucide-react"
-import { useEffect, useState } from "react"
+import { Clapperboard, FolderOpen, LayoutDashboard, ListFilter, Loader2, Plus } from "lucide-react"
+import { useEffect, useMemo, useState } from "react"
 import { toast } from "sonner"
 
 import { AutopilotStatus } from "@/components/autopilot-status"
 import { NewFilmDialog } from "@/components/new-film-dialog"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import {
   Sidebar,
   SidebarContent,
@@ -20,29 +30,50 @@ import {
   SidebarMenuSkeleton,
   SidebarRail,
 } from "@/components/ui/sidebar"
-import { api, fmtTime, type FilmSummary, type SeriesInfo } from "@/lib/api"
+import { api, fmtTime, type FilmSummary, type SeriesInfo, type Style } from "@/lib/api"
+import { cn } from "@/lib/utils"
 import type { Route } from "@/lib/route"
 
-/** films grouped by series (episodes numbered by creation order), then films without a series */
-function groupBySeries(films: FilmSummary[], series: SeriesInfo[]) {
-  const byAge = [...films].sort((a, b) => (a.createdAt ?? "").localeCompare(b.createdAt ?? ""))
-  const known = new Set(series.map((s) => s.id))
-  const groups: { id: string | null; label: string; films: FilmSummary[] }[] = series.map((s) => ({
-    id: s.id,
-    label: s.label,
-    films: byAge.filter((f) => f.series === s.id),
-  }))
-  const other = films.filter((f) => !f.series || !known.has(f.series))
-  if (other.length) groups.push({ id: null, label: "Other films", films: other })
-  return groups
+const ALL = "all"
+const NONE = "none" // films made before series existed
+const SAVED = "studio.sidebar.filter"
+
+/** the sidebar's film filter, kept across reloads */
+function useFilter() {
+  const [filter, setFilter] = useState<{ series: string; style: string }>(() => {
+    try {
+      return { series: ALL, style: ALL, ...JSON.parse(localStorage.getItem(SAVED) || "{}") }
+    } catch {
+      return { series: ALL, style: ALL }
+    }
+  })
+  useEffect(() => {
+    localStorage.setItem(SAVED, JSON.stringify(filter))
+  }, [filter])
+  return [filter, setFilter] as const
 }
 
 export function AppSidebar({ films, route, onCreated }: { films: FilmSummary[] | null; route: Route; onCreated: () => void }) {
   const [series, setSeries] = useState<SeriesInfo[]>([])
+  const [styles, setStyles] = useState<Style[]>([])
+  const [filter, setFilter] = useFilter()
   useEffect(() => {
     api.series().then(setSeries).catch(() => {})
+    api.styles().then(setStyles).catch(() => {})
   }, [])
-  const groups = films ? groupBySeries(films, series) : []
+  // a saved filter for a series or style that no longer exists counts as "all"
+  const bySeries = filter.series === NONE || series.some((x) => x.id === filter.series) ? filter.series : ALL
+  const byStyle = styles.some((x) => x.id === filter.style) ? filter.style : ALL
+  const active = (bySeries !== ALL ? 1 : 0) + (byStyle !== ALL ? 1 : 0)
+  const shown = useMemo(
+    () =>
+      (films ?? []).filter(
+        (f) =>
+          (bySeries === ALL || (bySeries === NONE ? !f.series : f.series === bySeries)) && (byStyle === ALL || f.style === byStyle),
+      ),
+    [films, bySeries, byStyle],
+  )
+  const clear = () => setFilter({ series: ALL, style: ALL })
   return (
     <Sidebar collapsible="icon">
       <SidebarHeader>
@@ -92,40 +123,86 @@ export function AppSidebar({ films, route, onCreated }: { films: FilmSummary[] |
             </SidebarGroupContent>
           </SidebarGroup>
         )}
-        {films &&
-          groups.map((g) => (
-            <SidebarGroup key={g.id ?? "other"}>
-              <SidebarGroupLabel>{g.label}</SidebarGroupLabel>
-              <NewFilmDialog onCreated={onCreated} defaultSeries={g.id ?? undefined}>
-                <SidebarGroupAction title={g.id ? `New ${g.label} episode` : "New film"}>
-                  <Plus />
-                  <span className="sr-only">New film</span>
+        {films && (
+          <SidebarGroup>
+            <SidebarGroupLabel>
+              Films
+              <span className="ml-1.5 font-mono tabular-nums">{active ? `${shown.length}/${films.length}` : films.length}</span>
+            </SidebarGroupLabel>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <SidebarGroupAction title="Filter films" className={cn("right-9", active > 0 && "text-brand")}>
+                  <ListFilter />
+                  <span className="sr-only">Filter films{active ? ` (${active} active)` : ""}</span>
                 </SidebarGroupAction>
-              </NewFilmDialog>
-              <SidebarGroupContent>
-                <SidebarMenu>
-                  {g.films.map((f, i) => (
-                    <SidebarMenuItem key={f.name}>
-                      <SidebarMenuButton
-                        asChild
-                        isActive={route.page === "film" && route.name === f.name}
-                        tooltip={f.title || f.name}
-                        className="pr-12"
-                      >
-                        <a href={`#/film/${f.name}`}>
-                          {f.running ? <Loader2 className="animate-spin text-brand" /> : <Clapperboard />}
-                          <span>{g.id ? `Ep ${i + 1} · ${f.title || f.name}` : f.name}</span>
-                        </a>
-                      </SidebarMenuButton>
-                      <SidebarMenuBadge className="font-mono text-muted-foreground tabular-nums">
-                        {f.voEnd ? fmtTime(f.voEnd).replace(/\.\d$/, "") : "—"}
-                      </SidebarMenuBadge>
-                    </SidebarMenuItem>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" side="right" className="w-48">
+                <DropdownMenuLabel>Series</DropdownMenuLabel>
+                <DropdownMenuRadioGroup value={bySeries} onValueChange={(v) => setFilter({ ...filter, series: v })}>
+                  <DropdownMenuRadioItem value={ALL}>All series</DropdownMenuRadioItem>
+                  {series.map((x) => (
+                    <DropdownMenuRadioItem key={x.id} value={x.id}>
+                      {x.label}
+                    </DropdownMenuRadioItem>
                   ))}
-                </SidebarMenu>
-              </SidebarGroupContent>
-            </SidebarGroup>
-          ))}
+                  <DropdownMenuRadioItem value={NONE}>No series</DropdownMenuRadioItem>
+                </DropdownMenuRadioGroup>
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel>Style</DropdownMenuLabel>
+                <DropdownMenuRadioGroup value={byStyle} onValueChange={(v) => setFilter({ ...filter, style: v })}>
+                  <DropdownMenuRadioItem value={ALL}>All styles</DropdownMenuRadioItem>
+                  {styles.map((x) => (
+                    <DropdownMenuRadioItem key={x.id} value={x.id}>
+                      {x.label}
+                    </DropdownMenuRadioItem>
+                  ))}
+                </DropdownMenuRadioGroup>
+                {active > 0 && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onSelect={clear}>Clear filters</DropdownMenuItem>
+                  </>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+            {/* a new film starts in the series the list is filtered to */}
+            <NewFilmDialog onCreated={onCreated} defaultSeries={bySeries !== ALL && bySeries !== NONE ? bySeries : undefined}>
+              <SidebarGroupAction title="New film">
+                <Plus />
+                <span className="sr-only">New film</span>
+              </SidebarGroupAction>
+            </NewFilmDialog>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {shown.map((f) => (
+                  <SidebarMenuItem key={f.name}>
+                    <SidebarMenuButton asChild isActive={route.page === "film" && route.name === f.name} tooltip={f.title || f.name} className="pr-12">
+                      <a href={`#/film/${f.name}`}>
+                        {f.running ? <Loader2 className="animate-spin text-brand" /> : <Clapperboard />}
+                        <span>{f.name}</span>
+                      </a>
+                    </SidebarMenuButton>
+                    <SidebarMenuBadge className="font-mono text-muted-foreground tabular-nums">
+                      {f.voEnd ? fmtTime(f.voEnd).replace(/\.\d$/, "") : "—"}
+                    </SidebarMenuBadge>
+                  </SidebarMenuItem>
+                ))}
+                {shown.length === 0 && (
+                  <SidebarMenuItem>
+                    <div className="px-2 py-1.5 text-xs text-muted-foreground group-data-[collapsible=icon]:hidden">
+                      {films.length === 0 ? "No films yet." : "No films match the filter."}
+                      {active > 0 && (
+                        <button type="button" onClick={clear} className="ml-1 underline underline-offset-2 hover:text-foreground">
+                          Clear
+                        </button>
+                      )}
+                    </div>
+                  </SidebarMenuItem>
+                )}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
       </SidebarContent>
 
       <SidebarFooter>
