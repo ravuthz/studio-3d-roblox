@@ -19,6 +19,6 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [react(), tailwindcss(), filmApi()],
     resolve: { alias: { "@": path.resolve(__dirname, "./src") } },
-    server: { host: "127.0.0.1", port: 3100, allowedHosts: [".ts.net"] },
+    server: { host: "127.0.0.1", port: 3100, allowedHosts: [".ts.net", ".appkh.online"] },
   }
 })

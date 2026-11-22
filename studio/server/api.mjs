@@ -2,7 +2,7 @@
 // Used as Vite middleware in dev (vite.config.ts) and by server/serve.mjs in production.
 import { spawn, spawnSync } from "node:child_process";
 import { createReadStream, existsSync, readdirSync, readFileSync, statSync, utimesSync, writeFileSync } from "node:fs";
-import { dirname, extname, join, normalize, resolve, sep } from "node:path";
+import { basename, dirname, extname, join, posix, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { scenesText } from "../../core/scripts/scenes.mjs";
 import { formatOf, listSeries, parseTopic, pickTopic, resolveSeries, slugify, topicPrompt } from "./topics.mjs";
@@ -527,24 +527,36 @@ async function body(req) {
   return raw ? JSON.parse(raw) : {};
 }
 
-function serveMedia(req, res, film, rel) {
+function serveMedia(req, res, film, rel, download = false) {
   const dir = join(OUTPUTS, film);
-  const clean = normalize(rel).replace(/^(\.\.(\/|\\|$))+/, "");
+  // posix paths on every OS: on Windows normalize() gives backslashes, which never match MEDIA_ROOTS
+  const clean = posix.normalize(rel.replace(/\\/g, "/")).replace(/^(\.\.(\/|$))+/, "").replace(/^\/+/, "");
   if (!MEDIA_ROOTS.some((r) => clean.startsWith(r))) return send(res, 404, { error: "Not found" });
   const file = resolve(dir, clean);
   if (!file.startsWith(dir + sep) || !existsSync(file)) return send(res, 404, { error: "Not found" });
   const { size: total } = statSync(file);
   const type = TYPES[extname(file).toLowerCase()] || "application/octet-stream";
+  const head = { "content-type": type, "accept-ranges": "bytes", "cache-control": "no-cache" };
+  // ?download asks the browser to save the file instead of playing it (iOS/Safari players have no download button)
+  if (download) head["content-disposition"] = `attachment; filename="${basename(file).replace(/[^\w.-]/g, "_")}"`;
+  // stream the bytes, and stop reading when the viewer seeks away or closes the tab
+  const stream = (opts) => {
+    if (req.method === "HEAD") return res.end();
+    const s = createReadStream(file, opts);
+    res.on("close", () => s.destroy());
+    s.on("error", () => res.destroy());
+    s.pipe(res);
+  };
   const range = req.headers.range?.match(/bytes=(\d*)-(\d*)/);
-  if (range) {
-    const start = range[1] ? Number(range[1]) : total - Number(range[2]);
+  if (range && (range[1] || range[2])) {
+    const start = range[1] ? Number(range[1]) : Math.max(0, total - Number(range[2]));
     const end = range[1] && range[2] ? Math.min(Number(range[2]), total - 1) : total - 1;
     if (start >= total || start > end) { res.writeHead(416, { "content-range": `bytes */${total}` }); return res.end(); }
-    res.writeHead(206, { "content-type": type, "content-length": end - start + 1, "content-range": `bytes ${start}-${end}/${total}`, "accept-ranges": "bytes", "cache-control": "no-cache" });
-    return createReadStream(file, { start, end }).pipe(res);
+    res.writeHead(206, { ...head, "content-length": end - start + 1, "content-range": `bytes ${start}-${end}/${total}` });
+    return stream({ start, end });
   }
-  res.writeHead(200, { "content-type": type, "content-length": total, "accept-ranges": "bytes", "cache-control": "no-cache" });
-  createReadStream(file).pipe(res);
+  res.writeHead(200, { ...head, "content-length": total });
+  stream();
 }
 
 /** Connect-style handler: answers /api/* and /media/*, calls next() for anything else. */
@@ -555,7 +567,7 @@ export async function handler(req, res, next) {
     if (p.startsWith("/media/")) {
       const [, , film, ...rest] = p.split("/");
       if (!NAME.test(film)) return send(res, 404, { error: "Not found" });
-      return serveMedia(req, res, film, decodeURIComponent(rest.join("/")));
+      return serveMedia(req, res, film, decodeURIComponent(rest.join("/")), url.searchParams.has("download"));
     }
     if (!p.startsWith("/api/")) return next?.();
 

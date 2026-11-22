@@ -3,6 +3,7 @@ import {
   Camera,
   CheckCheck,
   Clapperboard,
+  Download,
   Hammer,
   ListOrdered,
   Mic,
@@ -471,6 +472,13 @@ export function FilmPage({ name, tab, onChanged }: { name: string; tab: string; 
         <p className="text-center text-xs text-muted-foreground">
           1080×1920 · 30 fps{f.files.render ? ` · rendered ${fmtAgo(f.files.render)}` : ""}
         </p>
+        {src && (
+          <Button asChild variant="outline" size="sm">
+            <a href={`${src}&download`} download={`${f.name}.mp4`}>
+              <Download /> Download MP4
+            </a>
+          </Button>
+        )}
       </aside>
 
       <div className="grid min-w-0 content-start gap-6">
