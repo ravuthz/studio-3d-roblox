@@ -59,6 +59,10 @@ reads `.env.local`; the film scripts do that themselves. The server binds to 127
 only `renders/`, `assets/audio/` and `.hyperframes/artifacts/snapshots/` of a film, with range
 requests so large renders seek.
 
+Set `STUDIO_AUTH_USER` and `STUDIO_AUTH_PASSWORD` in `studio/.env` to put HTTP basic auth in front
+of everything (app, API, media) in both `npm run dev` and `npm start`; with either unset there is no
+login. Turn it on before exposing the studio beyond localhost (e.g. through a tunnel).
+
 | Path | |
 |---|---|
 | `src/App.tsx` | sidebar layout, header, hash routes (`#/`, `#/film/<name>/<tab>`) |

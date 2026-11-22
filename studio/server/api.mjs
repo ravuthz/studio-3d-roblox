@@ -1,6 +1,7 @@
 // Film Studio API: reads outputs/<film>/ and runs core/scripts/film.mjs steps as jobs.
 // Used as Vite middleware in dev (vite.config.ts) and by server/serve.mjs in production.
 import { spawn, spawnSync } from "node:child_process";
+import { createHash, timingSafeEqual } from "node:crypto";
 import { createReadStream, existsSync, readdirSync, readFileSync, statSync, utimesSync, writeFileSync } from "node:fs";
 import { basename, dirname, extname, join, posix, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -559,8 +560,25 @@ function serveMedia(req, res, film, rel, download = false) {
   stream();
 }
 
+// HTTP basic auth for every request (app, API and media) when STUDIO_AUTH_USER and
+// STUDIO_AUTH_PASSWORD are set in studio/.env; off when either is empty.
+const sha = (s) => createHash("sha256").update(s).digest();
+function authorized(req) {
+  const user = process.env.STUDIO_AUTH_USER, pass = process.env.STUDIO_AUTH_PASSWORD;
+  if (!user || !pass) return true;
+  const m = (req.headers.authorization || "").match(/^Basic\s+(.+)$/i);
+  if (!m) return false;
+  const given = Buffer.from(m[1], "base64").toString("utf8");
+  // compare hashes so lengths match and the check takes the same time whatever was sent
+  return timingSafeEqual(sha(given), sha(`${user}:${pass}`));
+}
+
 /** Connect-style handler: answers /api/* and /media/*, calls next() for anything else. */
 export async function handler(req, res, next) {
+  if (!authorized(req)) {
+    res.writeHead(401, { "www-authenticate": 'Basic realm="Film Studio", charset="UTF-8"', "content-type": "text/plain" });
+    return res.end("Authentication required");
+  }
   const url = new URL(req.url, "http://localhost");
   const p = url.pathname;
   try {
