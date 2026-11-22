@@ -13,7 +13,7 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import vm from "node:vm";
-import { bare, filmDir } from "./lib.mjs";
+import { bare, filmDir, styleId } from "./lib.mjs";
 
 const dir = filmDir(process.argv[2]);
 const ctx = { window: {} };
@@ -64,7 +64,7 @@ flashes.push(cuts.tail);
 const duration = Math.ceil((T.duration + 1.4) * 2) / 2;
 events.sort((a, b) => a.t - b.t);
 
-const plan = { title: story.title, names: story.names || [], fps: FPS, duration, voEnd: T.duration, cuts, order, marks, events, sections, flashes };
+const plan = { title: story.title, names: story.names || [], style: styleId(story.style), fps: FPS, duration, voEnd: T.duration, cuts, order, marks, events, sections, flashes };
 writeFileSync(join(dir, "story/plan.json"), JSON.stringify(plan, null, 1));
 writeFileSync(join(dir, "story/plan.js"), `window.STORY_PLAN = ${JSON.stringify(plan, null, 1)};\n`);
 

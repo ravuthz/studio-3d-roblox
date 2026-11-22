@@ -3,7 +3,8 @@
 Source: ten vertical shorts (576×1024, 30 fps, 108–148 s each) in `/Users/ravuthz/Projects/@data/3d-robox-shorts`.
 Method: `preprocess.py` (audio, Whisper word timestamps, scene cuts, loudness, 1 fps frames) and `sheets.py`
 (2 fps timestamped contact sheets), then five Opus 5.5 analysts read every contact sheet, two videos each.
-Per-video data lives in `vNN/` (`meta.json`, `transcript.txt`, `transcript.json`, `frames/`, `sheets/`).
+Per-video data lives in `styles/roblox/vNN/` (`meta.json`, `transcript.txt`, `transcript.json`, `frames/`, `sheets/`),
+next to the two scripts and `index.json`. The story template below applies to every film style.
 
 ## The ten videos
 

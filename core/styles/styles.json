@@ -1,0 +1,17 @@
+{
+  "default": "roblox",
+  "styles": [
+    {
+      "id": "roblox",
+      "label": "Roblox",
+      "description": "Blocky characters in a brick town at golden dusk.",
+      "aliases": ["blocky"]
+    },
+    {
+      "id": "pixar-disney",
+      "label": "Pixar-Disney",
+      "description": "Round, big-eyed characters in a pastel cottage town under a clear sky.",
+      "aliases": ["toy"]
+    }
+  ]
+}

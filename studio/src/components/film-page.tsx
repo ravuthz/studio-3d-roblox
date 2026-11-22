@@ -13,11 +13,11 @@ import {
   Terminal,
   Workflow,
 } from "lucide-react"
-import { useMemo, useRef, useState, type ReactNode } from "react"
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import { toast } from "sonner"
 
 import { JobConsole } from "@/components/job-console"
-import { JobBadge, LangBadge, LengthBadge, MoodBadge, StateBadge } from "@/components/status"
+import { JobBadge, LangBadge, LengthBadge, MoodBadge, StateBadge, StyleBadge } from "@/components/status"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -48,9 +48,11 @@ import {
   type StageState,
   type Step,
   type StoryLine,
+  type Style,
 } from "@/lib/api"
 import { go } from "@/lib/route"
 import { usePoll } from "@/lib/use-poll"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { cn } from "@/lib/utils"
 
 // ---------------------------------------------------------------- pipeline
@@ -371,7 +373,11 @@ export function FilmPage({ name, tab, onChanged }: { name: string; tab: string; 
   const film = usePoll(() => api.film(name), 5000, [name])
   const jobs = usePoll(() => api.jobs(name), 3000, [name])
   const [selected, setSelected] = useState<string | null>(null)
+  const [styles, setStyles] = useState<Style[]>([])
   const video = useRef<HTMLVideoElement>(null)
+  useEffect(() => {
+    api.styles().then(setStyles).catch(() => setStyles([]))
+  }, [])
   const f = film.data
   const busy = !!jobs.data?.some((j) => j.status === "running")
   const src = useMemo(() => (f ? renderUrl(f) : null), [f])
@@ -390,6 +396,19 @@ export function FilmPage({ name, tab, onChanged }: { name: string; tab: string; 
       await jobs.reload()
       onChanged()
       go(`#/film/${name}/runs`)
+    } catch (e) {
+      toast.error((e as Error).message)
+    }
+  }
+  /** the style is one line in story.json; the server re-plans so shots and the render show as stale */
+  const changeStyle = async (style: string) => {
+    try {
+      const { job } = await api.setStyle(name, style)
+      const label = styles.find((x) => x.id === style)?.label ?? style
+      toast.success(`Style set to ${label}`, { description: job ? "Re-planning. Take shots or render again to see it." : "Saved in story.json." })
+      if (job) setSelected(job.id)
+      await Promise.all([film.reload(), jobs.reload()])
+      onChanged()
     } catch (e) {
       toast.error((e as Error).message)
     }
@@ -461,6 +480,22 @@ export function FilmPage({ name, tab, onChanged }: { name: string; tab: string; 
               outputs/{f.name}
             </Badge>
             <LangBadge lang={f.lang} />
+            {styles.length > 0 ? (
+              <Select value={f.style} onValueChange={changeStyle} disabled={busy}>
+                <SelectTrigger size="sm" aria-label="Film style" className="h-6! gap-1 px-2 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {styles.map((x) => (
+                    <SelectItem key={x.id} value={x.id}>
+                      {x.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : (
+              <StyleBadge style={f.style} />
+            )}
             <LengthBadge voEnd={f.voEnd} />
             {busy && <JobBadge status="running" />}
           </div>

@@ -4,11 +4,14 @@ node_modules/
 pilot/.hyperframes/
 pilot/renders/*.log
 
-# Media derived from the reference videos (rebuild with analysis/preprocess.py and sheets.py)
-analysis/v*/audio.wav
-analysis/v*/frames/
-analysis/v*/sheets/
-analysis/preprocess.log
+# Reference studies, one folder per style: the videos and the media derived from them stay local
+# (roblox: rebuild with analysis/styles/roblox/preprocess.py and sheets.py); notes and data are kept
+analysis/styles/**/*.mp4
+analysis/styles/**/audio.wav
+analysis/styles/**/frames/
+analysis/styles/**/sheets/
+analysis/styles/**/keys/
+analysis/styles/roblox/preprocess.log
 
 # Films: everything under outputs/ is ignored (sources, audio and renders)
 outputs

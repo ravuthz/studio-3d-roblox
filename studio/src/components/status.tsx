@@ -23,6 +23,17 @@ export function LangBadge({ lang }: { lang: string | null }) {
   )
 }
 
+const STYLE_LABELS: Record<string, string> = { roblox: "Roblox", "pixar-disney": "Pixar-Disney" }
+
+/** a film's style; pass the list from api.styles() for labels of styles added later */
+export function StyleBadge({ style, label, className }: { style: string; label?: string; className?: string }) {
+  return (
+    <Badge variant="secondary" className={className}>
+      {label ?? STYLE_LABELS[style] ?? style}
+    </Badge>
+  )
+}
+
 export function StateIcon({ state, className }: { state: StageState; className?: string }) {
   if (state === "fresh") return <CircleCheck className={cn("size-4 text-success", className)} />
   if (state === "stale") return <CircleAlert className={cn("size-4 text-warning", className)} />

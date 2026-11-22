@@ -1,7 +1,8 @@
-# 3D blocky story films
+# 3D story films
 
-Vertical story shorts (1080×1920, 30 fps) made entirely from code: blocky characters, one-word
+Vertical story shorts (1080×1920, 30 fps) made entirely from code: one-word
 captions, a cut on every phrase and first-person narration, in the "In this town…" format.
+A film picks a style: `roblox` (blocky characters, the default) or `pixar-disney` (round, big-eyed ones).
 
 | Step | Tool |
 |---|---|
@@ -31,9 +32,10 @@ ELEVENLABS_VOICE_ID=...
 ## Layout
 
 ```
-core/        shared by every film: engine, captions, assets, scripts, template, vendor libraries
+core/        shared by every film: engine, captions, scripts, template, vendor libraries
+             and core/styles/<style>/ (builder, assets and look of each film style)
 outputs/     one folder per film (git-ignored): story, film code, audio, renders
-analysis/    notes from studying ten reference shorts (see analysis/ANALYSIS.md)
+analysis/    ANALYSIS.md (the story template) and styles/<style>/ (the reference study behind each style)
 AGENTS.md    full reference for AI agents and contributors
 ```
 
@@ -45,7 +47,7 @@ cues) and `film.js` (extra characters and the shot list). Everything else comes 
 Scaffold a new film folder:
 
 ```bash
-npm run film new my-film "In this town, ..."
+npm run film new my-film "In this town, ..." --style pixar-disney   # --style is optional
 ```
 
 Edit `outputs/my-film/story/story.json` and `outputs/my-film/film.js`, then build it:
@@ -65,7 +67,8 @@ run one at a time:
 | `npm run film check <name>` | HyperFrames lint. |
 | `npm run film shots <name> [ids]` | Snapshot the middle frame of every shot, to review before rendering. |
 | `npm run film render <name>` | Render the MP4. |
-| `npm run film assets` | Rebuild the shared GLB assets with Blender. |
+| `npm run film assets [style]` | Rebuild a style's GLB assets with Blender. |
+| `npm run film styles` | List the film styles. |
 
 To preview a film in the browser, serve it with HyperFrames:
 

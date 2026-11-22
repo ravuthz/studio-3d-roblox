@@ -1,13 +1,14 @@
-# 3D blocky story films
+# 3D story films
 
 Code-driven vertical story shorts (9:16, 1080×1920, 30 fps, **2–3 minutes by default**) in the
-"In this town…" format: blocky characters, one-word captions, a cut on every phrase, first-person
-narration. Blender builds the assets, VoxCPM2 (through the `/my-editor` skill) speaks the narration
+"In this town…" format: one-word captions, a cut on every phrase, first-person narration, in one of
+the film styles (`roblox`: blocky characters, the default; `pixar-disney`: round, big-eyed ones). Blender builds the assets, VoxCPM2 (through the `/my-editor` skill) speaks the narration
 in a cloned voice from `voices/`, Three.js stages every shot, HyperFrames composites and renders the MP4.
 
 ## Defaults for every film
 
 - **Format**: 9:16 vertical, 1080×1920, 30 fps.
+- **Style**: `roblox` unless the user asks for another (see "Styles").
 - **Length**: 2–3 minutes of narration plus the tail, unless the user asks for another length.
 - **Narration voice**: always generated with the `/my-editor` skill in voice-cloning mode, using
   these references and no others:
@@ -24,8 +25,10 @@ in a cloned voice from `voices/`, Three.js stages every shot, HyperFrames compos
 
 ```
 core/                 shared by every film — change here only what all films should get
-  blender/build_assets.py   rig, hair, clips, town, extra sets and props → core/assets/*.glb
-  assets/                   character.glb, town.glb, sets.glb
+  styles/                   one folder per film style; styles.json lists them, index.js gives them to the engine
+    roblox/                   build.py (Blender), assets/{character,town,sets}.glb, style.js, preview.png
+    pixar-disney/             the same files for that style
+    preview.html, preview.js  character check for any style: turnaround, faces, poses, thumbnail
   engine/stage.js           renderer, lights, film grade, cast and clothing, crowd, props, cameras, createFilm()
   engine/textures.js        procedural surface textures (brick, asphalt, wood, fabric…) and printed cloth
   engine/captions.js        one-word captions and flashes from the word timings
@@ -43,7 +46,8 @@ outputs/<film>/       one folder per film — only what is specific to that film
   renders/<film>.mp4                                      generated
 studio/               Film Studio web app (Vite + React + shadcn/ui, light and dark mode): browse films,
                       read scripts, review snapshots, play renders and run pipeline steps with live logs
-analysis/             notes and scripts from studying ten reference shorts (ANALYSIS.md)
+analysis/             ANALYSIS.md: the story and pacing template for every film
+  styles/<style>/           the reference study behind each style: roblox (ten shorts: data, scripts), pixar-disney (STYLE.md)
 voices/               narration references for /my-editor: in-town.mp3 (English), ravuthz.mp3 (Khmer)
 .agents/skills/       project skills for every agent (my-editor); .claude/skills is a symlink to it
 CLAUDE.md, GEMINI.md  both just import this file
@@ -62,7 +66,7 @@ elevenlabs.js         ElevenLabs client (legacy narration); key and ELEVENLABS_V
    add it to `core/` and export it, then use it from the film. Check the other films still render.
 4. Films are original stories. The reference shorts are for format and pacing only; do not reuse
    their scripts, characters or shots.
-5. The family is fixed: Zero (narrator, the kid), Zeebra (elder brother), Luna (mother), Zip (father).
+5. The family is fixed in every style: Zero (narrator, the kid), Zeebra (elder brother), Luna (mother), Zip (father).
 6. Never read, print or commit `.env.local`. The voice step reads the key itself.
 7. Narration always uses the `/my-editor` voice clone for the film's language (English:
    `voices/in-town.mp3`, Khmer: `voices/ravuthz.mp3`). Never overwrite or edit files in `voices/`.
@@ -71,7 +75,7 @@ elevenlabs.js         ElevenLabs client (legacy narration); key and ELEVENLABS_V
 ## Commands
 
 ```bash
-npm run film new <name> "Title"   # scaffold outputs/<name>/
+npm run film new <name> "Title" [--style <id>]   # scaffold outputs/<name>/ (style: see `film styles`)
 npm run film narrate <name>       # /my-editor voice-clone narration + word timings (cached per line)
 npm run film voice <name>         # LEGACY ElevenLabs narration for older films
 npm run film plan <name>          # cut times, sound events, durations
@@ -80,7 +84,8 @@ npm run film check <name>         # HyperFrames lint
 npm run film shots <name> [ids]   # snapshot the middle frame of every shot, or of the listed cut ids
 npm run film render <name>        # outputs/<name>/renders/<name>.mp4
 npm run film build <name>         # narrate (voice for films without "lang") → plan → audio → check → render
-npm run film assets               # rebuild core/assets with Blender (after editing build_assets.py)
+npm run film assets [style]       # rebuild a style's assets with Blender (after editing its build.py); all styles when omitted
+npm run film styles               # list the film styles
 npm run studio                    # Film Studio web app on http://127.0.0.1:3100 (run `npm install` in studio/ once)
 ```
 
@@ -122,6 +127,47 @@ port 3002; change its `outputs/<name>` argument to preview another film.
 Top level: `title`, `names` (words captions keep capitalised), `voice` (model, speed, stability,
 similarity, style), optional `voiceId`. A `tail` shot is added automatically after the narration.
 Add `"lang": "en"` or `"lang": "km"` to pick the narration voice (English is the default).
+Add `"style": "<id>"` to pick the film style (`roblox` is the default); run `plan` after changing it.
+
+## Styles
+
+A style is a folder in `core/styles/` that owns everything about a look: characters, animation clips,
+town, sets, face art and light. A film picks one with `"style"` in `story.json`; the film's shot code
+is the same for every style.
+
+| Id             | Look                                                                                       |
+| -------------- | ------------------------------------------------------------------------------------------ |
+| `roblox`       | Blocky characters, a brick town at golden dusk, strong contrast and film grain. Default.     |
+| `pixar-disney` | Round, big-eyed characters with bouncy acting, a pastel cottage town, clear sky, soft grade. |
+
+Files of a style (`core/styles/<id>/`):
+
+- `build.py`: the Blender script; `npm run film assets <id>` writes `assets/character.glb`, `town.glb`
+  and `sets.glb`. `pixar-disney/build.py` imports its helpers from `roblox/build.py`.
+- `style.js`: what the engine asks for: `assets` folder, `size` (model scale), `headY`, `drawFace(g, expr, o)`,
+  `faceRoughness`, `skinRoughness`, `skin()` (a skin material, or null) and `look(ctx, night, green, red)`
+  (called at the end of `setEnv`, or null for the engine's own light).
+- `preview.png`: the thumbnail the Film Studio shows.
+
+Every style keeps the same contract, so shots work in all of them: the 8 bones, the 16 clip names, the
+material names, the `M_Hair_*` / `M_Fit_*` / `M_Face` / `M_Chest` object names, the set object names
+(`BoardScreen`, `Room`, `RoomWindow`, `Forest`, `Saucer`, `Car`, `Mothership`, `House`, `HouseWindow`),
+the material names the engine drives (`Glass`, `LampGlow`, `TowerLight`, `HouseGlass`, `RoomLamp`,
+`CarPaint`, `CarLight`, `SaucerGlass`, `SaucerLight`, `ShipHatch`) and the town layout (street along Z,
+facades at |x| ≈ 21, lamps and tower in the same places).
+
+To add a style: copy a style folder, change its `build.py` and `style.js`, add it to
+`core/styles/styles.json` and to `STYLES` in `core/styles/index.js`, then build its assets and make
+`preview.png` from `core/styles/preview.html?style=<id>&sheet=card`.
+
+Notes for `pixar-disney`:
+
+- The head is about twice as wide as a roblox head. Keep close-ups 8 studs or more from the face
+  (a roblox close-up is 2.5–3), and a medium shot about 9–10.
+- Characters are scaled so a face sits at the same height as in `roblox`; they stand a little taller.
+- Two characters hugging or standing closer than 2.6 studs put their heads through each other.
+- A raised arm stops in a V (the head is wider than the shoulders).
+- The bedroom, forest, car and family house are the roblox ones with round edges and pastel colours.
 
 ## Narration with /my-editor
 

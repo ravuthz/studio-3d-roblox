@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // One entry point for working on a film.   node core/scripts/film.mjs <command> <film>
 //
-//   new <film> ["Title"]  scaffold outputs/<film>/ from core/template
+//   new <film> ["Title"] [--style <id>]   scaffold outputs/<film>/ from core/template
 //   narrate <film>        /my-editor voice-clone narration + word timings (cached per line)
 //   voice <film>          legacy ElevenLabs narration + word timings (spends credits on text changes)
 //   plan <film>           cut times, sound events and durations from the timings
@@ -10,11 +10,12 @@
 //   shots <film> [ids]    snapshot the middle frame of every shot (or of the listed cut ids)
 //   render <film>         render outputs/<film>/renders/<film>.mp4
 //   build <film>          narrate (or voice), plan, audio, check and render in order
-//   assets                rebuild the shared GLB assets with Blender
+//   assets [style]        rebuild a style's GLB assets with Blender (every style when none is named)
+//   styles                list the film styles (folders in core/styles/)
 import { spawnSync } from "node:child_process";
 import { cpSync, existsSync, lstatSync, mkdirSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
 import { basename, join } from "node:path";
-import { CORE, OUTPUTS, ROOT, filmDir } from "./lib.mjs";
+import { CORE, OUTPUTS, ROOT, filmDir, styleId, styles } from "./lib.mjs";
 
 const HF = ["--yes", "hyperframes@0.9.22"];
 const BLENDER = process.env.BLENDER || "/Applications/Blender.app/Contents/MacOS/Blender";
@@ -38,12 +39,15 @@ const steps = {
   new() {
     const dir = filmDir(name, { mustExist: false });
     if (existsSync(dir)) throw new Error(`${dir} already exists`);
-    const title = rest[0] || name;
+    const at = rest.indexOf("--style");
+    const style = at < 0 ? null : styleId(rest[at + 1]);
+    const title = rest.filter((_, i) => at < 0 || (i !== at && i !== at + 1))[0] || name;
     mkdirSync(join(dir, "story"), { recursive: true });
     mkdirSync(join(dir, "assets/audio"), { recursive: true });
     for (const f of ["index.html", "film.js", "hyperframes.json"]) cpSync(join(CORE, "template", f), join(dir, f));
     const story = JSON.parse(readFileSync(join(CORE, "template/story.json"), "utf8"));
     story.title = title;
+    if (style) story.style = style;
     writeFileSync(join(dir, "story/story.json"), JSON.stringify(story, null, 2) + "\n");
     writeFileSync(join(dir, "film.js"), readFileSync(join(dir, "film.js"), "utf8").replaceAll("__FILM__", basename(dir)));
     writeFileSync(join(dir, "meta.json"), JSON.stringify({ id: basename(dir), name: basename(dir), createdAt: new Date().toISOString() }, null, 2) + "\n");
@@ -82,10 +86,18 @@ const steps = {
     const story = JSON.parse(readFileSync(join(filmDir(name), "story/story.json"), "utf8"));
     for (const s of [story.lang ? "narrate" : "voice", "plan", "audio", "check", "render"]) steps[s]();
   },
-  assets() { run(BLENDER, ["-b", "--factory-startup", "-P", "core/blender/build_assets.py", "--", "core/assets"]); },
+  assets() {
+    for (const id of name ? [styleId(name)] : styles().map((s) => s.id)) {
+      console.log(`\n— ${id} —`);
+      run(BLENDER, ["-b", "--factory-startup", "-P", `core/styles/${id}/build.py`, "--", `core/styles/${id}/assets`]);
+    }
+  },
+  styles() {
+    for (const s of styles()) console.log(`${s.id.padEnd(14)} ${s.label}${s.default ? " (default)" : ""}: ${s.description}`);
+  },
 };
 if (!steps[cmd]) {
-  console.log(readFileSync(new URL(import.meta.url), "utf8").split("\n").slice(1, 13).map((l) => l.replace(/^\/\/ ?/, "")).join("\n"));
+  console.log(readFileSync(new URL(import.meta.url), "utf8").split("\n").slice(1, 14).map((l) => l.replace(/^\/\/ ?/, "")).join("\n"));
   process.exit(cmd ? 1 : 0);
 }
 try { steps[cmd](); } catch (e) { console.error(`✗ ${e.message}`); process.exit(1); }

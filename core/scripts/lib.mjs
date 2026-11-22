@@ -1,5 +1,5 @@
 // Shared helpers for the film scripts.
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -15,3 +15,17 @@ export function filmDir(arg, { mustExist = true } = {}) {
   return dir;
 }
 export const bare = (w) => w.toLowerCase().replace(/[^a-z]/g, "");
+
+/** The film styles: core/styles/styles.json lists them; each has a folder core/styles/<id>/. */
+export function styles() {
+  const reg = JSON.parse(readFileSync(join(CORE, "styles/styles.json"), "utf8"));
+  return reg.styles.map((s) => ({ ...s, default: s.id === reg.default }));
+}
+/** the style id for a name from story.json or the command line (aliases allowed; empty = the default) */
+export function styleId(name) {
+  const all = styles();
+  if (!name) return all.find((s) => s.default).id;
+  const hit = all.find((s) => s.id === name || (s.aliases || []).includes(name));
+  if (!hit) throw new Error(`Unknown style "${name}". Styles: ${all.map((s) => s.id).join(", ")}`);
+  return hit.id;
+}

@@ -190,6 +190,10 @@ const SURFACES = {
   Glass: [null, 0, 0.08, 0.2], HouseGlass: [null, 0, 0.08, 0.2], CarGlass: [null, 0, 0.06, 0.3],
   CarPaint: [null, 0, 0.24, 0.35], Tire: [null, 0, 0.85, 0], SaucerHull: [null, 0, 0.28, 0.7], ShipHull: [null, 0, 0.36, 0.6], ShipDome: [null, 0, 0.3, 0.6],
   Frame: [null, 0, 0.6, 0], TowerDark: [null, 0, 0.45, 0.3], Knob: [null, 0, 0.25, 0.9],
+  // the toy style's town: mostly smooth painted surfaces, with a light texture on the ground and plants
+  ToyRoad: ["asphalt", 0.3, 0.95], ToyWalk: ["plaster", 0.3, 0.9], ToyGrass: ["grass", 0.6, 1],
+  ToyLeaf0: ["leaves", 0.5, 0.95], ToyLeaf1: ["leaves", 0.5, 0.95], ToyBlossom: ["leaves", 0.5, 0.95], ToyBush: ["leaves", 0.5, 0.95],
+  ToyPost: [null, 0, 0.4, 0.3], ToyTower: [null, 0, 0.5, 0.1], ToyKnob: [null, 0, 0.25, 0.9],
 };
 
 /** give a set/prop material its texture, bump and reflectance (by glTF material name) */

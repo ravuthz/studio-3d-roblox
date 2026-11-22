@@ -1,5 +1,5 @@
 """Preprocess reference videos: audio, transcript (word timestamps), scene cuts,
-1 fps frames, timestamped contact sheets, loudness. Output: analysis/vNN/."""
+1 fps frames, timestamped contact sheets, loudness. Output: analysis/styles/roblox/vNN/."""
 import glob, json, os, re, subprocess, sys
 
 SRC = "/Users/ravuthz/Projects/@data/3d-robox-shorts"

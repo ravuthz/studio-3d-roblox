@@ -17,7 +17,8 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
-import { api, type Agent } from "@/lib/api"
+import { api, stylePreview, type Agent, type Style } from "@/lib/api"
+import { cn } from "@/lib/utils"
 import { go } from "@/lib/route"
 
 const TEMPLATE = "template"
@@ -28,6 +29,8 @@ export function NewFilmDialog({ children, onCreated }: { children: ReactNode; on
   const [name, setName] = useState("")
   const [title, setTitle] = useState("")
   const [lang, setLang] = useState<"en" | "km">("en")
+  const [styles, setStyles] = useState<Style[]>([])
+  const [style, setStyle] = useState<string>("")
   const [agent, setAgentState] = useState<string>(TEMPLATE)
   const [model, setModel] = useState<string>(CLI_DEFAULT)
   const [idea, setIdea] = useState("")
@@ -54,6 +57,14 @@ export function NewFilmDialog({ children, onCreated }: { children: ReactNode; on
         setModel((cur) => (cur === CLI_DEFAULT || list.some((a) => a.models.some((m) => m.id === cur)) ? cur : CLI_DEFAULT))
       })
       .catch(() => setAgents([]))
+    // the styles are the folders registered in core/styles/styles.json
+    api
+      .styles()
+      .then((list) => {
+        setStyles(list)
+        setStyle((cur) => (list.some((x) => x.id === cur) ? cur : (list.find((x) => x.default) ?? list[0])?.id ?? ""))
+      })
+      .catch(() => setStyles([]))
   }, [open])
 
   async function submit(e: React.FormEvent) {
@@ -65,6 +76,7 @@ export function NewFilmDialog({ children, onCreated }: { children: ReactNode; on
         name,
         title: title.trim(),
         lang,
+        style,
         agent: useAgent ? agent : null,
         model: useAgent && model !== CLI_DEFAULT ? model : null,
         idea,
@@ -96,6 +108,32 @@ export function NewFilmDialog({ children, onCreated }: { children: ReactNode; on
               as <code className="font-mono">npm run film new</code>. An AI agent can then write the story and shots.
             </DialogDescription>
           </DialogHeader>
+          {styles.length > 0 && (
+            <div className="grid gap-2">
+              <Label id="film-style-label">Style</Label>
+              <div role="radiogroup" aria-labelledby="film-style-label" className="grid grid-cols-2 gap-3">
+                {styles.map((x) => (
+                  <button
+                    key={x.id}
+                    type="button"
+                    role="radio"
+                    aria-checked={style === x.id}
+                    onClick={() => setStyle(x.id)}
+                    className={cn(
+                      "grid grid-cols-[4.5rem_1fr] items-center gap-3 rounded-lg border p-2 text-left transition-colors outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50",
+                      style === x.id ? "border-primary bg-primary/5 ring-1 ring-primary" : "hover:bg-muted/60",
+                    )}
+                  >
+                    <img src={stylePreview(x.id)} alt="" className="size-[4.5rem] rounded-md bg-muted object-cover" />
+                    <span className="grid gap-0.5">
+                      <span className="text-sm font-medium">{x.label}</span>
+                      <span className="text-xs leading-snug text-muted-foreground">{x.description}</span>
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
           <div className="grid gap-4 sm:grid-cols-[1fr_9rem]">
             <div className="grid gap-2">
               <Label htmlFor="film-name">

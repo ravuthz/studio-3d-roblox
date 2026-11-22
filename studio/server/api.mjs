@@ -1,7 +1,7 @@
 // Film Studio API: reads outputs/<film>/ and runs core/scripts/film.mjs steps as jobs.
 // Used as Vite middleware in dev (vite.config.ts) and by server/serve.mjs in production.
 import { spawn, spawnSync } from "node:child_process";
-import { createReadStream, existsSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { createReadStream, existsSync, readdirSync, readFileSync, statSync, utimesSync, writeFileSync } from "node:fs";
 import { dirname, extname, join, normalize, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -16,6 +16,17 @@ const MEDIA_ROOTS = ["renders/", "assets/audio/", ".hyperframes/artifacts/snapsh
 const TYPES = { ".mp4": "video/mp4", ".mp3": "audio/mpeg", ".wav": "audio/wav", ".png": "image/png", ".jpg": "image/jpeg", ".json": "application/json" };
 
 const readJson = (p) => { try { return JSON.parse(readFileSync(p, "utf8")); } catch { return null; } };
+// film styles: the registry in core/styles/styles.json, one folder per style (see AGENTS.md)
+const STYLES_DIR = join(ROOT, "core/styles");
+function styles() {
+  const reg = readJson(join(STYLES_DIR, "styles.json")) || { default: "roblox", styles: [{ id: "roblox", label: "Roblox", description: "" }] };
+  return reg.styles.map((s) => ({ id: s.id, label: s.label, description: s.description, aliases: s.aliases || [], default: s.id === reg.default }));
+}
+/** the style id for a name in story.json: aliases resolve, nothing or an unknown name gives the default */
+function styleOf(name) {
+  const all = styles();
+  return (all.find((s) => s.id === name || s.aliases.includes(name)) || all.find((s) => s.default) || all[0]).id;
+}
 const mtime = (p) => { try { return statSync(p).mtimeMs; } catch { return null; } };
 const size = (p) => { try { return statSync(p).size; } catch { return null; } };
 
@@ -73,6 +84,7 @@ function summary(name, { full = false } = {}) {
     name,
     title: story.title || name,
     lang: story.lang || null,
+    style: styleOf(story.style),
     lines: story.lines.length,
     words,
     shots,
@@ -237,13 +249,15 @@ function autoName(title, idea) {
   }
 }
 
-function storyPrompt({ name, title, lang, idea }) {
+function storyPrompt({ name, title, lang, style, idea }) {
   const km = lang === "km";
-  return `You are writing a new film in this repository of 3D blocky story films. The folder outputs/${name}/ was just scaffolded from core/template and still holds the template story and shots.
+  const look = styles().find((s) => s.id === style);
+  return `You are writing a new film in this repository of 3D story films. The folder outputs/${name}/ was just scaffolded from core/template and still holds the template story and shots.
 
 Film folder: outputs/${name}
 Title: ${title || "none given: choose a short, catchy title that fits the story and set it as \"title\" in story.json"}
 Language: ${km ? 'Khmer ("lang": "km")' : 'English ("lang": "en")'}
+Style: ${look.label} ("style": "${look.id}", already set in story.json; keep it). ${look.description} Read the "Styles" section of AGENTS.md for its framing notes.
 Idea: ${idea || (title ? "Invent an original story that fits the title." : "Invent an original story.")}
 
 Steps:
@@ -308,8 +322,17 @@ export async function handler(req, res, next) {
 
     if (p === "/api/agents" && req.method === "GET") return send(res, 200, await agents());
 
+    if (p === "/api/styles" && req.method === "GET") return send(res, 200, styles());
+    let sm = p.match(/^\/api\/styles\/([a-z0-9-]+)\/preview$/);
+    if (sm && req.method === "GET") {
+      const file = join(STYLES_DIR, sm[1], "preview.png");
+      if (!styles().some((x) => x.id === sm[1]) || !existsSync(file)) return send(res, 404, { error: "Not found" });
+      res.writeHead(200, { "content-type": "image/png", "content-length": statSync(file).size, "cache-control": "no-cache" });
+      return createReadStream(file).pipe(res);
+    }
+
     if (p === "/api/films" && req.method === "POST") {
-      const { name: rawName, title: rawTitle, lang = "en", agent = null, model = null, idea: rawIdea = "" } = await body(req);
+      const { name: rawName, title: rawTitle, lang = "en", style: rawStyle = null, agent = null, model = null, idea: rawIdea = "" } = await body(req);
       const idea = String(rawIdea || "").slice(0, 4000);
       const given = String(rawTitle || "").trim().slice(0, 200);
       // with an agent the folder name and title may be left empty: the name comes from the title or idea, the agent picks the title
@@ -317,6 +340,8 @@ export async function handler(req, res, next) {
       if (!NAME.test(name || "")) return send(res, 400, { error: "Use lowercase letters, numbers and dashes for the name" });
       if (existsSync(join(OUTPUTS, name))) return send(res, 409, { error: `outputs/${name} already exists` });
       if (!["en", "km"].includes(lang)) return send(res, 400, { error: "lang must be en or km" });
+      const style = rawStyle == null ? styleOf() : styles().find((x) => x.id === rawStyle)?.id;
+      if (!style) return send(res, 400, { error: `Unknown style: ${rawStyle}` });
       if (agent) {
         const a = (await agents()).find((x) => x.name === agent);
         if (!a) return send(res, 400, { error: `Agent ${agent} is not allowed (STUDIO_AGENTS)` });
@@ -329,8 +354,8 @@ export async function handler(req, res, next) {
       // new films use the /my-editor voice clone, picked by "lang"
       const storyPath = join(OUTPUTS, name, "story/story.json");
       const story = readJson(storyPath);
-      writeFileSync(storyPath, JSON.stringify({ ...story, lang }, null, 2) + "\n");
-      const job = agent ? publicJob(startAgent(name, agent, model || null, { title: given || null, lang, idea })) : null;
+      writeFileSync(storyPath, JSON.stringify({ ...story, lang, style }, null, 2) + "\n");
+      const job = agent ? publicJob(startAgent(name, agent, model || null, { title: given || null, lang, style, idea })) : null;
       return send(res, 201, { film: summary(name), job });
     }
 
@@ -338,6 +363,27 @@ export async function handler(req, res, next) {
     if (m && req.method === "GET") {
       if (!filmNames().includes(m[1])) return send(res, 404, { error: "No such film" });
       return send(res, 200, summary(m[1], { full: true }));
+    }
+
+    // change a film's style: rewrite "style" in story.json (the text is edited in place, so the
+    // file keeps its layout), then re-run plan so plan.js carries it to the engine
+    if (m && req.method === "PATCH") {
+      const film = m[1];
+      if (!filmNames().includes(film)) return send(res, 404, { error: "No such film" });
+      const { style: want } = await body(req);
+      const style = styles().find((x) => x.id === want)?.id;
+      if (!style) return send(res, 400, { error: `Unknown style: ${want}` });
+      const storyPath = join(OUTPUTS, film, "story/story.json");
+      let text = readFileSync(storyPath, "utf8");
+      if (/"style"\s*:\s*"[^"]*"/.test(text)) text = text.replace(/"style"\s*:\s*"[^"]*"/, `"style": "${style}"`);
+      else text = text.replace(/\{(\s*)/, (_, ws) => `{${ws}"style": "${style}",${ws}`);
+      JSON.parse(text); // never write a broken story
+      // keep the file's date: the narration does not depend on the style, so it must not show as out of date
+      const { atime, mtime: was } = statSync(storyPath);
+      writeFileSync(storyPath, text);
+      utimesSync(storyPath, atime, was);
+      const planned = existsSync(join(OUTPUTS, film, "story/timing.js"));
+      return send(res, 200, { film: summary(film), job: planned ? publicJob(startStep(film, "plan")) : null });
     }
 
     m = p.match(/^\/api\/films\/([^/]+)\/run$/);

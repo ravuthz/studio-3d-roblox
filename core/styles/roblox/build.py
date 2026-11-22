@@ -1,8 +1,9 @@
-"""Build the pilot's 3D assets procedurally and export them as GLB.
+"""Build the "roblox" style's 3D assets procedurally and export them as GLB.
+The other styles import this file's helpers (Builder, mat, export, bake_clips, build_sets).
 
-Run headless:
+Run headless (or `npm run film assets roblox`):
   /Applications/Blender.app/Contents/MacOS/Blender -b --factory-startup \
-      -P core/blender/build_assets.py -- core/assets
+      -P core/styles/roblox/build.py -- core/styles/roblox/assets
 
 Outputs:
   character.glb  one blocky rig (8 bones), body parts, hair/accessory variants for
@@ -21,7 +22,7 @@ import bmesh
 import bpy
 from mathutils import Matrix, Vector
 
-OUT = sys.argv[sys.argv.index("--") + 1] if "--" in sys.argv else "core/assets"
+OUT = sys.argv[sys.argv.index("--") + 1] if "--" in sys.argv else "core/styles/roblox/assets"
 OUT = os.path.abspath(OUT)
 os.makedirs(OUT, exist_ok=True)
 FPS = 30
@@ -326,8 +327,11 @@ def build_character():
     export(os.path.join(OUT, "character.glb"), True)
 
 
-def bake_clips(rig):
-    """Each clip is a pose function of normalised time u in [0, 1)."""
+def bake_clips(rig, loc_scale=1.0, adjust=None, clips=None):
+    """Each clip is a pose function of normalised time u in [0, 1).
+    loc_scale scales the hip offsets for a rig with a different hip height;
+    adjust(clip, pose) may return a changed pose for a body with other proportions;
+    clips replaces the whole set: [(name, pose function, frames)] with the same names."""
     S, C, PI2 = math.sin, math.cos, math.tau
 
     def idle(u):
@@ -428,11 +432,12 @@ def bake_clips(rig):
                 "ArmL": (0, 0, 1.35 + 0.03 * s), "ArmR": (0, 0, -1.35 - 0.03 * s),
                 "LegL": (0, 0, 0.16), "LegR": (0, 0, -0.16)}
 
-    clips = [("Sit", sit, 60), ("HandsUp", handsup, 60), ("Reach", reach, 60), ("Shiver", shiver, 30),
+    default = [("Sit", sit, 60), ("HandsUp", handsup, 60), ("Reach", reach, 60), ("Shiver", shiver, 30),
              ("Eat", eat, 60), ("Block", block, 60),
              ("Idle", idle, 60), ("Walk", walk, 30), ("Run", run, 20), ("Talk", talk, 60),
              ("Wave", wave, 60), ("Shock", shock, 45), ("Cheer", cheer, 30), ("Sad", sad, 90),
              ("Point", point, 60), ("LookUp", lookup, 60)]
+    clips = clips or default
 
     bpy.context.view_layer.objects.active = rig
     bpy.ops.object.mode_set(mode="POSE")
@@ -445,12 +450,14 @@ def bake_clips(rig):
         rig.animation_data.action = act
         for f in range(n + 1):
             pose = fn(f / n)
+            if adjust:
+                pose = adjust(name, pose)
             for pb in rig.pose.bones:
                 v = pose.get(pb.name, (0, 0, 0))
                 loc, rot = (0, 0, 0), v
                 if isinstance(v, dict):
                     loc, rot = v.get("loc", (0, 0, 0)), v.get("rot", (0, 0, 0))
-                pb.location = loc
+                pb.location = [c * loc_scale for c in loc]
                 pb.rotation_euler = rot
                 pb.keyframe_insert("location", frame=f + 1)
                 pb.keyframe_insert("rotation_euler", frame=f + 1)
@@ -694,7 +701,8 @@ def build_sets():
     export(os.path.join(OUT, "sets.glb"), False)
 
 
-build_character()
-build_town()
-build_sets()
-print("DONE")
+if __name__ == "__main__":
+    build_character()
+    build_town()
+    build_sets()
+    print("DONE")

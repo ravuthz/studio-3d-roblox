@@ -12,12 +12,17 @@ import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js"
 import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 import { ShaderPass } from "three/addons/postprocessing/ShaderPass.js";
 import { mulberry32, dress, weave, cloth, CLOTH_PATTERNS } from "./textures.js";
+import { resolveStyle } from "../styles/index.js";
+import { drawFace } from "../styles/roblox/style.js";
 
 const PLAN = window.STORY_PLAN;
 const C = PLAN.cuts;
 const W = 1080;
 const H = 1920;
 const TOWN_SCALE = 1.6;
+// The film's style: a folder in core/styles/ with its own characters, town, sets, faces and light.
+// Set with "style" in story.json or createFilm({ style }); every style shares bones, clips and part names.
+let STYLE = resolveStyle();
 
 // ------------------------------------------------------------------ utils
 const clamp01 = (x) => Math.min(1, Math.max(0, x));
@@ -179,92 +184,9 @@ function canvasTex(w, h, draw, flipY = false) {
   return t;
 }
 
-function drawFace(g, expr, o) {
-  const brow = o.brow || "#2a2230";
-  const line = (pts, w = 8, col = "#1b1820") => {
-    g.strokeStyle = col; g.lineWidth = w; g.lineCap = "round"; g.lineJoin = "round";
-    g.beginPath(); pts.forEach(([x, y], i) => (i ? g.lineTo(x, y) : g.moveTo(x, y))); g.stroke();
-  };
-  const arc = (x, y, r, a0, a1, w = 8) => {
-    g.strokeStyle = "#1b1820"; g.lineWidth = w; g.lineCap = "round";
-    g.beginPath(); g.arc(x, y, r, a0, a1); g.stroke();
-  };
-  const teeth = (y) => {
-    g.fillStyle = "#fff"; g.strokeStyle = "#1b1820"; g.lineWidth = 6;
-    g.beginPath(); g.roundRect(96, y, 64, 26, 8); g.fill(); g.stroke();
-    for (const x of [112, 128, 144]) line([[x, y + 2], [x, y + 24]], 4);
-  };
-  const ey = 128, lx = 86, rx = 170;
-  g.translate(0, 22);
-  if (o.blush) {
-    g.fillStyle = "rgba(255,120,130,0.33)";
-    for (const x of [58, 198]) { g.beginPath(); g.ellipse(x, 166, 20, 12, 0, 0, Math.PI * 2); g.fill(); }
-  }
-  if (o.alien) { // big slanted black eyes, no brows
-    const k = expr === "shock" ? 1.18 : expr === "sad" ? 0.92 : expr === "angry" ? 0.8 : 1;
-    const tilt = expr === "sad" ? -0.15 : expr === "angry" ? 0.75 : 0.42;
-    for (const [x, s] of [[80, 1], [176, -1]]) {
-      g.fillStyle = expr === "angry" ? "#5a0a0a" : "#12121a";
-      g.beginPath(); g.ellipse(x, ey - 4, 25 * k, 36 * k, s * tilt, 0, Math.PI * 2); g.fill();
-      g.fillStyle = expr === "angry" ? "#ff5a4a" : "#fff";
-      g.beginPath(); g.arc(x - 8, ey - 20, 8 * k, 0, Math.PI * 2); g.fill();
-      g.beginPath(); g.arc(x + 8, ey + 6, 4 * k, 0, Math.PI * 2); g.fill();
-      if (o.lashes) { line([[x - s * 22, ey - 34], [x - s * 36, ey - 46]], 5); line([[x - s * 28, ey - 22], [x - s * 42, ey - 28]], 5); }
-    }
-    if (expr === "happy") { g.fillStyle = "#1e4a22"; g.beginPath(); g.arc(128, 188, 22, 0, Math.PI); g.closePath(); g.fill(); }
-    else if (expr === "shock") { g.fillStyle = "#1e4a22"; g.beginPath(); g.ellipse(128, 200, 12, 16, 0, 0, Math.PI * 2); g.fill(); }
-    else if (expr === "sad") arc(128, 214, 20, Math.PI * 1.2, Math.PI * 1.8, 7);
-    else if (expr === "angry") teeth(184);
-    else arc(128, 178, 18, Math.PI * 0.2, Math.PI * 0.8, 7);
-    return;
-  }
-  const eye = (x, y, a, b) => {
-    g.fillStyle = "#1b1820";
-    g.beginPath(); g.ellipse(x, y, a, b, 0, 0, Math.PI * 2); g.fill();
-    g.fillStyle = "#fff";
-    g.beginPath(); g.arc(x - a * 0.3, y - b * 0.4, a * 0.36, 0, Math.PI * 2); g.fill();
-  };
-  if (expr === "shock") {
-    eye(lx, ey, 17, 25); eye(rx, ey, 17, 25);
-    line([[lx - 20, ey - 46], [lx + 14, ey - 52]], 7, brow); line([[rx - 14, ey - 52], [rx + 20, ey - 46]], 7, brow);
-    g.fillStyle = "#3a1220"; g.beginPath(); g.ellipse(128, 196, 17, 22, 0, 0, Math.PI * 2); g.fill();
-  } else if (expr === "sad") {
-    eye(lx, ey + 4, 13, 18); eye(rx, ey + 4, 13, 18);
-    line([[lx - 20, ey - 28], [lx + 16, ey - 42]], 7, brow); line([[rx - 16, ey - 42], [rx + 20, ey - 28]], 7, brow);
-    arc(128, 214, 24, Math.PI * 1.2, Math.PI * 1.8);
-  } else if (expr === "happy") {
-    eye(lx, ey, 14, 21); eye(rx, ey, 14, 21);
-    line([[lx - 18, ey - 42], [lx + 16, ey - 46]], 7, brow); line([[rx - 16, ey - 46], [rx + 18, ey - 42]], 7, brow);
-    g.fillStyle = "#3a1220"; g.beginPath(); g.arc(128, 180, 27, 0, Math.PI); g.closePath(); g.fill();
-    g.fillStyle = "#ff8f9c"; g.beginPath(); g.ellipse(128, 198, 13, 7, 0, 0, Math.PI * 2); g.fill();
-  } else if (expr === "smug") {
-    eye(lx, ey, 14, 20); eye(rx, ey, 14, 20);
-    line([[lx - 20, ey - 46], [lx + 16, ey - 34]], 8, brow); line([[rx - 16, ey - 34], [rx + 20, ey - 46]], 8, brow);
-    line([[104, 190], [128, 196], [156, 182]], 8);
-  } else if (expr === "angry") {
-    eye(lx, ey + 2, 14, 17); eye(rx, ey + 2, 14, 17);
-    line([[lx - 22, ey - 44], [lx + 18, ey - 24]], 10, brow); line([[rx - 18, ey - 24], [rx + 22, ey - 44]], 10, brow);
-    teeth(o.mustache ? 190 : 178);
-  } else if (expr === "sleep") { // closed eyes, small relaxed mouth
-    arc(lx, ey - 6, 15, Math.PI * 0.15, Math.PI * 0.85, 7); arc(rx, ey - 6, 15, Math.PI * 0.15, Math.PI * 0.85, 7);
-    line([[lx - 18, ey - 36], [lx + 16, ey - 38]], 6, brow); line([[rx - 16, ey - 38], [rx + 18, ey - 36]], 6, brow);
-    g.fillStyle = "#3a1220"; g.beginPath(); g.ellipse(128, 186, 8, 6, 0, 0, Math.PI * 2); g.fill();
-  } else {
-    eye(lx, ey, 14, 21); eye(rx, ey, 14, 21);
-    line([[lx - 18, ey - 42], [lx + 16, ey - 44]], 7, brow); line([[rx - 16, ey - 44], [rx + 18, ey - 42]], 7, brow);
-    arc(128, 172, 24, Math.PI * 0.2, Math.PI * 0.8);
-  }
-  if (o.lashes) for (const [x, d] of [[lx, -1], [rx, 1]]) {
-    line([[x + d * 13, ey - 14], [x + d * 25, ey - 24]], 5); line([[x + d * 16, ey - 4], [x + d * 28, ey - 8]], 5);
-  }
-  if (o.mustache) {
-    g.fillStyle = o.mustache;
-    g.beginPath(); g.ellipse(106, 166, 26, 11, -0.2, 0, Math.PI * 2); g.ellipse(150, 166, 26, 11, 0.2, 0, Math.PI * 2); g.fill();
-  }
-}
 const EXPRS = ["neutral", "happy", "shock", "sad", "smug", "angry", "sleep"];
 // faces and chest prints are drawn in a 256 space but stored at 512, so close-ups stay sharp
-const faceSet = (o) => Object.fromEntries(EXPRS.map((e) => [e, canvasTex(512, 512, (g) => { g.scale(2, 2); drawFace(g, e, o); })]));
+const faceSet = (o) => Object.fromEntries(EXPRS.map((e) => [e, canvasTex(512, 512, (g) => { g.scale(2, 2); STYLE.drawFace(g, e, o); })]));
 
 const CHESTS = {
   zero: (g) => {
@@ -399,7 +321,7 @@ let ready = false;
 function makeActor(base, clips, def) {
   const root = new THREE.Group();
   const model = cloneSkinned(base);
-  model.scale.setScalar(def.scale);
+  model.scale.setScalar(def.scale * STYLE.size);
   root.add(model);
   const faces = faceSet(def.face || {});
   const chestTex = canvasTex(512, 512, (g) => { g.scale(2, 2); CHESTS[def.chest || "none"](g); });
@@ -414,18 +336,19 @@ function makeActor(base, clips, def) {
       if (m.name === "Face" || m.name === "Chest") {
         const nm = new THREE.MeshStandardMaterial({
           map: m.name === "Face" ? faces.neutral : chestTex, transparent: true, alphaTest: 0.04,
-          roughness: 0.9, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4,
+          roughness: m.name === "Face" ? STYLE.faceRoughness : 0.9, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4,
         });
         nm.name = m.name;
         if (m.name === "Face") faceMat = nm;
         return nm;
       }
-      const nm = m.clone();
+      const skin = m.name === "Skin" || (m.name === "Forearm" && col.Forearm === col.Skin) || (m.name === "Shin" && col.Shin === col.Skin);
+      const nm = skin && STYLE.skin ? STYLE.skin() : m.clone();
+      nm.name = m.name;
       if (col[m.name]) nm.color.set(col[m.name]);
       const [bump, strength, rough, metal] = SKINS_OF[m.name] || [null, 0, 0.82, 0];
       nm.roughness = rough; nm.metalness = metal;
-      const skin = m.name === "Skin" || (m.name === "Forearm" && col.Forearm === col.Skin) || (m.name === "Shin" && col.Shin === col.Skin);
-      if (skin) { nm.roughness = 0.62; }
+      if (skin) { nm.roughness = STYLE.skinRoughness; }
       else if (bump) { nm.normalMap = weave(bump); nm.normalScale.set(strength, strength); }
       const print = !skin && garment[m.name] && def.cloth && def.cloth[garment[m.name]];
       if (print) { // printed cloth carries its own colours
@@ -444,7 +367,7 @@ function makeActor(base, clips, def) {
   const actions = {};
   for (const clip of clips) { actions[clip.name] = mixer.clipAction(clip); actions[clip.name].play(); }
   const badge = new THREE.Sprite(new THREE.SpriteMaterial({ map: numberTex("0", "#ffffff"), fog: false, depthWrite: false, toneMapped: false }));
-  const headY = 5.3 * def.scale;
+  const headY = STYLE.headY * def.scale;
   badge.visible = false;
   overlay.add(badge);
   scene.add(root);
@@ -607,7 +530,9 @@ function setEnv(n, green = 0, red = 0) {
   if (townMats.HouseGlass) townMats.HouseGlass.emissiveIntensity = lerp(0.0, 1.5, n);
   if (townMats.RoomLamp) townMats.RoomLamp.emissiveIntensity = lerp(0.3, 3.0, n);
   stars.material.opacity = clamp01(n * 1.4 - 0.4) * (1 - green * 0.7);
+  if (STYLE.look) STYLE.look({ skyU, scene, hemi, sun, bloom, grade, renderer, GREEN }, n, green, red);
 }
+
 const MOODS = { day: [0, 0, 0], dusk: [0.42, 0, 0], night: [1, 0, 0], red: [0.25, 0, 1], nightred: [1, 0, 0.7], green: [1, 1, 0] };
 
 const _p = v3(0, 0, 0), _t = v3(0, 0, 0);
@@ -740,7 +665,7 @@ async function build(config) {
   await document.fonts.load('700 100px "Fredoka"');
   const loader = new GLTFLoader();
   const [charGltf, townGltf, setsGltf] = await Promise.all([
-    loader.loadAsync("core/assets/character.glb"), loader.loadAsync("core/assets/town.glb"), loader.loadAsync("core/assets/sets.glb"),
+    ...["character", "town", "sets"].map((f) => loader.loadAsync(`${STYLE.assets}/${f}.glb`)),
   ]);
   for (const c of charGltf.animations) clipDur[c.name] = c.duration;
   for (const k in CAST) A[k] = makeActor(charGltf.scene, charGltf.animations, CAST[k]);
@@ -804,6 +729,7 @@ let SHOT_BY_ID = {}, ORDER = [];
 /**
  * Start a film.
  *   id     unique name (used for the HyperFrames build hold)
+ *   style  a folder name in core/styles/ ("roblox" by default); story.json's "style" sets it too
  *   cast   extra characters: { name: { hair, scale, chest, face, glow, col } }
  *   chests extra chest decals: { name: (g) => draw on a 256x256 canvas }
  *   board  (g, w, h) => draw the tower screen's default 512x1024 picture
@@ -811,6 +737,7 @@ let SHOT_BY_ID = {}, ORDER = [];
  *   shots  [[cutId, "set mood", stage(t, u, s)], ...] keyed by the plan's cut ids
  */
 function createFilm(config) {
+  STYLE = resolveStyle(config.style || PLAN.style);
   Object.assign(CAST, config.cast || {});
   Object.assign(CHESTS, config.chests || {});
   SHOT_BY_ID = Object.fromEntries(config.shots.map((s) => [s[0], s]));

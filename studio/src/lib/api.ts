@@ -23,10 +23,20 @@ export interface FilmFiles {
   shots: number | null
 }
 
+/** a film style: a folder in core/styles/ with its own characters, town, sets and light */
+export interface Style {
+  id: string
+  label: string
+  description: string
+  default: boolean
+}
+
 export interface FilmSummary {
   name: string
   title: string
   lang: "en" | "km" | null
+  /** style id, resolved: a film without "style" in story.json has the default */
+  style: string
   lines: number
   words: number
   shots: number
@@ -71,6 +81,7 @@ export interface NewFilm {
   name: string
   title: string
   lang: "en" | "km"
+  style: string
   agent: string | null
   /** null = the agent CLI's own default model */
   model: string | null
@@ -103,6 +114,10 @@ export const api = {
   films: () => request<FilmSummary[]>("/api/films"),
   film: (name: string) => request<FilmDetail>(`/api/films/${name}`),
   agents: () => request<Agent[]>("/api/agents"),
+  styles: () => request<Style[]>("/api/styles"),
+  /** writes "style" to story.json; the server then re-runs plan when the film has timings */
+  setStyle: (name: string, style: string) =>
+    request<{ film: FilmSummary; job: Job | null }>(`/api/films/${name}`, { method: "PATCH", body: JSON.stringify({ style }) }),
   create: (film: NewFilm) =>
     request<{ film: FilmSummary; job: Job | null }>("/api/films", { method: "POST", body: JSON.stringify(film) }),
   run: (name: string, step: Step, args: string[] = []) =>
@@ -114,6 +129,8 @@ export const api = {
 
 export const media = (film: string, path: string) =>
   `/media/${film}/${path.split("/").map(encodeURIComponent).join("/")}`
+
+export const stylePreview = (id: string) => `/api/styles/${id}/preview`
 
 export const renderUrl = (f: Pick<FilmSummary, "name" | "files">) =>
   f.files.render ? `${media(f.name, `renders/${f.name}.mp4`)}?v=${Math.round(f.files.render)}` : null

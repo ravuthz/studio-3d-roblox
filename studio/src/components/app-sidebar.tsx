@@ -34,7 +34,7 @@ export function AppSidebar({ films, route, onCreated }: { films: FilmSummary[] |
                 </div>
                 <div className="grid flex-1 text-left leading-tight">
                   <span className="truncate font-semibold">Film Studio</span>
-                  <span className="truncate text-xs text-muted-foreground">3D blocky story films</span>
+                  <span className="truncate text-xs text-muted-foreground">3D story films</span>
                 </div>
               </a>
             </SidebarMenuButton>

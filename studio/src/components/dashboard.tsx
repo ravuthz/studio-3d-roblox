@@ -2,7 +2,7 @@ import { Clapperboard, Film, Grid2x2, Grid3x3, Plus, Scissors, Timer } from "luc
 import { useState } from "react"
 
 import { NewFilmDialog } from "@/components/new-film-dialog"
-import { LengthBadge, StateIcon } from "@/components/status"
+import { LengthBadge, StateIcon, StyleBadge } from "@/components/status"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card"
@@ -85,9 +85,10 @@ function FilmCard({ film, dense }: { film: FilmSummary; dense: boolean }) {
               {film.title}
             </div>
           </div>
-          <Badge className={cn("absolute bottom-2 left-2 border-transparent bg-black/70 font-mono text-white uppercase", dense && "lg:hidden")}>
-            {film.lang ?? "en · 11labs"}
-          </Badge>
+          <div className={cn("absolute bottom-2 left-2 flex gap-1", dense && "lg:hidden")}>
+            <Badge className="border-transparent bg-black/70 font-mono text-white uppercase">{film.lang ?? "en · 11labs"}</Badge>
+            <StyleBadge style={film.style} className="border-transparent bg-black/70 text-white" />
+          </div>
           <Badge className={cn("absolute right-2 bottom-2 bg-black/70 font-mono text-white tabular-nums", dense && "lg:right-1.5 lg:bottom-1.5 lg:h-4 lg:px-1.5 lg:text-[10px]")}>
             {fmtTime(film.voEnd)}
           </Badge>
