@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // One entry point for working on a film.   node core/scripts/film.mjs <command> <film>
 //
-//   new <film> ["Title"] [--style <id>]   scaffold outputs/<film>/ from core/template
+//   new <film> ["Title"] [--series <id>] [--style <id>]   scaffold outputs/<film>/ from core/template and series
 //   narrate <film>        /my-editor voice-clone narration + word timings (cached per line)
 //   voice <film>          legacy ElevenLabs narration + word timings (spends credits on text changes)
 //   plan <film>           cut times, sound events and durations from the timings
@@ -16,16 +16,18 @@ import { spawnSync } from "node:child_process";
 import { cpSync, existsSync, lstatSync, mkdirSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
 import { basename, join } from "node:path";
 import { CORE, OUTPUTS, ROOT, filmDir, styleId, styles } from "./lib.mjs";
+import { resolveSeries } from "./series.mjs";
 
 const HF = ["--yes", "hyperframes@0.9.22"];
 const BLENDER = process.env.BLENDER || "/Applications/Blender.app/Contents/MacOS/Blender";
 // the audio script needs numpy: use $PYTHON, or the first interpreter that has it
-const PYTHON = process.env.PYTHON || ["python3", "/opt/homebrew/bin/python3", "/opt/homebrew/opt/python@3.11/bin/python3.11", "/usr/local/bin/python3"]
+const PYTHON = process.env.PYTHON || ["python3", "python", "/opt/homebrew/bin/python3", "/opt/homebrew/opt/python@3.11/bin/python3.11", "/usr/local/bin/python3"]
   .find((py) => spawnSync(py, ["-c", "import numpy"], { stdio: "ignore" }).status === 0) || "python3";
 const [cmd, name, ...rest] = process.argv.slice(2);
 
 function run(bin, args, opts = {}) {
-  const r = spawnSync(bin, args, { stdio: "inherit", cwd: ROOT, ...opts });
+  const winNpx = process.platform === "win32" && bin === "npx";
+  const r = spawnSync(winNpx ? "npx.cmd" : bin, args, { stdio: "inherit", cwd: ROOT, ...(winNpx ? { shell: true } : {}), ...opts });
   if (r.status !== 0) process.exit(r.status ?? 1);
 }
 /** every film folder carries a "core" symlink so its page can load the shared engine and assets */
@@ -33,31 +35,59 @@ function link(dir) {
   const p = join(dir, "core");
   let present = false;
   try { lstatSync(p); present = true; } catch {}
-  if (!present) symlinkSync("../../core", p, "dir");
+  if (!present) {
+    try { symlinkSync("../../core", p, "dir"); }
+    catch (e) { if (process.platform === "win32") symlinkSync(CORE, p, "junction"); else throw e; }
+  }
 }
 const steps = {
   new() {
     const dir = filmDir(name, { mustExist: false });
     if (existsSync(dir)) throw new Error(`${dir} already exists`);
-    const at = rest.indexOf("--style");
-    const style = at < 0 ? null : styleId(rest[at + 1]);
-    const title = rest.filter((_, i) => at < 0 || (i !== at && i !== at + 1))[0] || name;
+    let seriesId = null, styleName = null;
+    const pos = [];
+    for (let i = 0; i < rest.length; i++) {
+      if (rest[i] === "--series") { seriesId = rest[++i] || ""; continue; }
+      if (rest[i].startsWith("--series=")) { seriesId = rest[i].slice("--series=".length); continue; }
+      if (rest[i] === "--style") { styleName = rest[++i] || ""; continue; }
+      if (rest[i].startsWith("--style=")) { styleName = rest[i].slice("--style=".length); continue; }
+      pos.push(rest[i]);
+    }
+    const series = resolveSeries(seriesId);
+    const style = styleName === null ? null : styleId(styleName);
+    const title = pos[0] || name;
     mkdirSync(join(dir, "story"), { recursive: true });
     mkdirSync(join(dir, "assets/audio"), { recursive: true });
     for (const f of ["index.html", "film.js", "hyperframes.json"]) cpSync(join(CORE, "template", f), join(dir, f));
+    const narratorName = series.narrator?.name || "Pip";
+    const narratorKey = series.narrator?.key || "pip";
     const story = JSON.parse(readFileSync(join(CORE, "template/story.json"), "utf8"));
     story.title = title;
+    story.series = series.id;
     if (style) story.style = style;
+    story.lang = "en";
+    story.names = [...(series.names || [narratorName])];
+    story.lines = story.lines.map((l) => ({
+      ...l,
+      text: String(l.text || "").replaceAll("__NARRATOR__", narratorName),
+      big: Array.isArray(l.big) ? l.big.map((w) => w.replaceAll("__NARRATOR__", narratorName)) : l.big,
+    }));
     writeFileSync(join(dir, "story/story.json"), JSON.stringify(story, null, 2) + "\n");
-    writeFileSync(join(dir, "film.js"), readFileSync(join(dir, "film.js"), "utf8").replaceAll("__FILM__", basename(dir)));
-    writeFileSync(join(dir, "meta.json"), JSON.stringify({ id: basename(dir), name: basename(dir), createdAt: new Date().toISOString() }, null, 2) + "\n");
+    writeFileSync(
+      join(dir, "film.js"),
+      readFileSync(join(dir, "film.js"), "utf8")
+        .replaceAll("__FILM__", basename(dir))
+        .replaceAll("__NARRATOR_KEY__", narratorKey)
+        .replaceAll("__NARRATOR_NAME__", narratorName),
+    );
+    writeFileSync(join(dir, "meta.json"), JSON.stringify({ id: basename(dir), name: basename(dir), series: series.id, createdAt: new Date().toISOString() }, null, 2) + "\n");
     link(dir);
-    console.log(`Created ${dir}\nNext: edit story/story.json and film.js, then run: npm run film build ${basename(dir)}`);
+    console.log(`Created ${dir} (series: ${series.id})\nNext: edit story/story.json and film.js, then run: npm run film build ${basename(dir)}`);
   },
   voice() { run("node", ["--env-file=.env.local", "core/scripts/tts.mjs", name]); },
   narrate() {
     // needs numpy, gradio_client and faster_whisper: use $NARRATE_PYTHON, or the first interpreter that has them
-    const py = process.env.NARRATE_PYTHON || [PYTHON, "python3", "/opt/homebrew/opt/python@3.11/bin/python3.11", "/opt/homebrew/bin/python3"]
+    const py = process.env.NARRATE_PYTHON || [PYTHON, "python3", "python", "/opt/homebrew/opt/python@3.11/bin/python3.11", "/opt/homebrew/bin/python3"]
       .find((p) => spawnSync(p, ["-c", "import numpy, gradio_client, faster_whisper"], { stdio: "ignore" }).status === 0) || "python3";
     run(py, ["core/scripts/narrate.py", name, ...rest]);
   },

@@ -77,3 +77,4 @@ if (existsSync(html)) {
 }
 const lens = order.map((id, i) => (order[i + 1] ? cuts[order[i + 1]] : duration) - cuts[id]);
 console.log(`duration ${duration} s, ${order.length} shots, average ${(duration / order.length).toFixed(2)} s, shortest ${Math.min(...lens).toFixed(2)} s, longest ${Math.max(...lens).toFixed(2)} s`);
+if (T.duration < 61) console.log(`WARNING: narration is ${T.duration.toFixed(1)} s, under 61 s; TikTok will not monetize it. Lengthen the script.`);

@@ -1,0 +1,86 @@
+{
+  "id": "family",
+  "label": "Family",
+  "narrator": {
+    "key": "pip",
+    "name": "Pip",
+    "role": "kid, first-person narrator"
+  },
+  "cast": [
+    {
+      "key": "bo",
+      "name": "Bo",
+      "role": "dad"
+    },
+    {
+      "key": "mira",
+      "name": "Mira",
+      "role": "mom"
+    },
+    {
+      "key": "pip",
+      "name": "Pip",
+      "role": "kid (narrator)"
+    },
+    {
+      "key": "biscuit",
+      "name": "Biscuit",
+      "role": "family dog",
+      "dog": true
+    }
+  ],
+  "names": [
+    "Bo",
+    "Mira",
+    "Pip",
+    "Biscuit",
+    "Dad",
+    "Mom"
+  ],
+  "format": {
+    "label": "family skit",
+    "shape": "Grounded, warm 62–75 second family comedy skit (about 175–200 words; never under 61 seconds — TikTok only monetizes videos over a minute) told in Pip's witty first-person voice (no magic town rule and no \"In this town\"). Hook in the first 0–3 s with an everyday household disaster. Quick setup in one or two lines: Dad Bo's overconfident plan, Mom Mira's sharp realism, Pip's kid logic, Biscuit the dog's chaotic priorities. One or two fast escalations, then a punchline twist or reversal, then a short button line that calls back the hook. Keep it to one or two places, best of all the home interior set (env \"home\"). Quote family dialogue inside Pip's single-voice narration, cutting directly to the speaker with the Talk clip (and Bark/Beg/Sit/Walk/Run/Sleep for Biscuit, framing Sit from a side angle)."
+  },
+  "topics": [
+    {
+      "name": "biscuit-fake-sick",
+      "title": "Biscuit learned how to fake being sick",
+      "idea": "Pip notices Biscuit develops a tragic limp every time Bo grabs the leash for the vet, then bolts at full speed the second Mira opens the snack cabinet. Round by round the family tests him with carrots, cheese, and a fake car ride until Biscuit pulls a dramatic faint—and blows his cover the instant Bo drops a warm pancake."
+    },
+    {
+      "name": "dad-parallel-parks",
+      "title": "Dad refused to pick an easier parking spot",
+      "idea": "On a quick errand down the street, Bo spots one impossibly tight curb space and swears he can nail it in one turn. Mira waves directions from the sidewalk, Pip keeps score from the car window, and Biscuit barks advice until half the block gathers to cheer—right next to a giant empty lot Bo ignored."
+    },
+    {
+      "name": "who-broke-porch-lamp",
+      "title": "Nobody broke the front porch lamp",
+      "idea": "Mira steps outside at dusk to find the porch lamp crooked and dark, turning the front steps into an instant family courtroom. Bo blames a wild gust of wind, Pip blames a stray bounce, and everyone eyes Biscuit—until Biscuit trots back from the yard and proudly drops Bo's own golf club at Mira's feet."
+    },
+    {
+      "name": "backwoods-camping-trip",
+      "title": "Dad promised a luxury camping trip",
+      "idea": "Bo convinces the family to ditch screens for one night under the stars in the forest clearing. First Bo forgets the tent stakes, then Mira hears one twig snap and triggers full bear protocol, and Biscuit bolts into the pines and returns with a shoe—until all four pile into the SUV with the heater blasting and call it perfection."
+    },
+    {
+      "name": "five-step-bedtime-stall",
+      "title": "My five-step plan to stay up past nine",
+      "idea": "Pip unleashes every classic kid stall tactic in his bedroom: urgent thirst, a suspicious shadow by the window, and an emergency math question. Mira shuts down round one and Bo shuts down round two, so Pip recruits Biscuit for puppy-eye backup—which works so well that Bo and Mira fall asleep on the rug while Pip is still wide awake."
+    },
+    {
+      "name": "dad-secret-shortcut",
+      "title": "Dad knew a secret highway shortcut",
+      "idea": "Driving home along the canyon highway, Bo ignores the main sign to take a shortcut he swears he remembers from twenty years ago. Round one hits a dusty dead end, round two loops past the exact same giant cactus twice, and Biscuit whines like a backseat GPS—until Mira takes the wheel and gets them home in four minutes."
+    },
+    {
+      "name": "biscuit-neighborhood-mayor",
+      "title": "Biscuit ran the whole street behind our backs",
+      "idea": "Pip wonders why Biscuit keeps coming home from morning walks already full and unusually smug. One Saturday the family secretly trails him down the street and catches him collecting treats from three porches and holding court at the crosswalk—before Biscuit spots them and pretends he has never seen a snack in his life."
+    },
+    {
+      "name": "no-complaining-challenge",
+      "title": "Mom started a no-complaining challenge",
+      "idea": "Tired of weekend grumbling, Mira announces a family challenge: whoever goes all day without complaining once picks dinner. Bo nearly cracks hauling bags up the steps, Pip survives a dropped pancake through clenched teeth, and Mira trips over Biscuit's toy—leaving Biscuit as the undefeated champion, so everybody eats bacon."
+    }
+  ]
+}

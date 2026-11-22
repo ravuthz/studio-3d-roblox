@@ -130,7 +130,7 @@ export function Dashboard({ films, onCreated }: { films: FilmSummary[] | null; o
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Films</h1>
           <p className="text-sm text-muted-foreground">
-            Vertical 9:16 shorts, 2–3 minutes, narrated in a cloned voice.
+            Vertical 9:16 shorts, 30–60 seconds, narrated in a cloned voice.
           </p>
         </div>
         <div className="flex items-center gap-2">

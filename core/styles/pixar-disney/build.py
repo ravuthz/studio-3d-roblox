@@ -289,9 +289,57 @@ def build_character():
         b.hull([(0.92, (0, 0.05, 5.02), (1, 1, 0.12)), (0.98, (0, 0.05, 6.0), (1, 1, 0.12))], hair, 4)
         b.ball(0.96, (0, 0.05, 5.16), acc, (1, 1, 0.16), sub=4)                       # band
 
-    for name, fn in (("Hair_Zero", hair_zero), ("Hair_Zeebra", hair_zeebra), ("Hair_Luna", hair_luna),
-                     ("Hair_Zip", hair_zip), ("Hair_Zark", hair_zark), ("Hair_Mayor", hair_mayor)):
-        part(name, "Head", fn)
+    def fringe(b, locks, m=None):   # soft locks hugging the forehead: (x, z, tilt, size)
+        for x, z, tilt, k in locks:
+            b.ball(0.42 * k, (x, front(x, z), z), m or hair, (1.0, 0.42, 0.6), (0.45, tilt, 0), sub=4)
+
+    def hair_bo(b):  # dad: a thick side part with a swept front wave and silver temples
+        cap(b, hair)
+        fringe(b, ((-0.66, 4.6, 0.3, 0.9), (-0.2, 4.76, 0.1, 1.2), (0.34, 4.74, -0.25, 1.15), (0.78, 4.52, -0.6, 0.9)))
+        b.ball(0.5, (0.2, -0.5, 5.0), hair, (1.5, 0.9, 0.6), (-0.3, -0.2, 0), sub=4)      # the wave
+        for sx in (-1, 1):
+            b.ball(0.3, (sx * 1.02, -0.22, 4.28), hair2, (0.4, 0.9, 0.8))
+
+    def hair_mira(b):  # mum: a high bun in a scrunchie, side-swept bangs and a warm highlight
+        cap(b, hair)
+        fringe(b, ((-0.72, 4.5, 0.8, 0.95), (-0.28, 4.66, 0.6, 1.15), (0.26, 4.68, 0.4, 1.1), (0.76, 4.5, -0.5, 0.9)))
+        fringe(b, ((-0.1, 4.78, 0.5, 0.6),), hair2)
+        b.ball(0.5, (0, 0.25, 5.22), acc, (1, 1, 0.34), sub=4)
+        b.ball(0.52, (0, 0.27, 5.6), hair, (1.05, 1.0, 0.9), sub=4)
+        b.ball(0.24, (0.2, 0.08, 5.78), hair2, (1.1, 0.9, 0.7))
+
+    def hair_pip(b):  # kid: a fluffy curly mop with highlight puffs
+        cap(b, hair)
+        puffs = ((-0.6, -0.72, 4.72), (-0.15, -0.9, 4.86), (0.34, -0.86, 4.84), (0.76, -0.6, 4.66),
+                 (-0.46, -0.44, 5.14), (0.04, -0.5, 5.24), (0.52, -0.38, 5.12), (-0.3, 0.1, 5.34), (0.3, 0.14, 5.36),
+                 (-0.86, -0.1, 4.82), (0.9, -0.06, 4.8), (-0.6, 0.5, 5.1), (0.02, 0.6, 5.2), (0.62, 0.52, 5.08))
+        for i, (x, y, z) in enumerate(puffs):
+            b.ball(0.4, (x, y, z), hair2 if i in (2, 5, 8) else hair, (1.05, 1.0, 0.92))
+
+    def hair_kai(b):  # a middle part with curtain bangs, a layered crown and a cool side streak
+        cap(b, hair)
+        fringe(b, ((-0.74, 4.46, 0.9, 0.95), (-0.38, 4.7, 0.7, 1.15), (0.38, 4.7, -0.7, 1.15), (0.74, 4.46, -0.9, 0.95)))
+        fringe(b, ((0.62, 4.6, -0.8, 0.55),), hair2)
+        for sx in (-1, 1):
+            b.ball(0.5, (sx * 0.4, -0.05, 5.02), hair, (1.0, 1.5, 0.5), (0, sx * 0.3, 0), sub=4)
+        b.ball(0.26, (0.56, -0.05, 5.1), hair2, (0.5, 1.6, 0.5), (0, 0.3, 0))
+
+    def hair_nova(b):  # a chin-length bob with dipped tips and two half-up space buns
+        cap(b, hair)
+        b.hull([(1.12, (0, 0.28, 3.9)), (0.86, (0, 0.5, 3.3), (1.3, 0.6, 1))], hair, 4)
+        b.ball(0.5, (0, 0.62, 3.0), hair2, (2.1, 0.7, 0.5), sub=4)
+        for sx in (-1, 1):
+            b.hull([(0.36, (sx * 1.0, -0.1, 4.2), (0.6, 1, 1)), (0.32, (sx * 1.1, -0.18, 3.5), (0.6, 1, 1))], hair)
+            b.ball(0.3, (sx * 1.14, -0.2, 3.3), hair2, (0.7, 1.1, 0.7))
+            b.ball(0.3, (sx * 0.56, 0.06, 5.12), acc, (1, 1, 0.34))
+            b.ball(0.4, (sx * 0.6, 0.06, 5.42), hair, (1.0, 0.96, 0.92), sub=4)
+        fringe(b, ((-0.4, 4.66, 0.3, 1.1), (0.4, 4.66, -0.3, 1.1)))
+
+    # every hairstyle the roblox style has: a cast entry names one with hair: "<Name>"
+    for name, fn in (("Zero", hair_zero), ("Zeebra", hair_zeebra), ("Luna", hair_luna), ("Zip", hair_zip),
+                     ("Zark", hair_zark), ("Mayor", hair_mayor), ("Bo", hair_bo), ("Mira", hair_mira),
+                     ("Pip", hair_pip), ("Kai", hair_kai), ("Nova", hair_nova)):
+        part("Hair_" + name, "Head", fn)
 
     B.bake_clips(rig, HIP / 2, clips=soft_clips())
     B.export(os.path.join(OUT, "character.glb"), True)

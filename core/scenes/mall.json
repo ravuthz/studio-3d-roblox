@@ -1,0 +1,400 @@
+{
+ "id": "mall",
+ "label": "Shopping mall",
+ "series": [
+  "family",
+  "lover"
+ ],
+ "about": "Two-level mall hall: three shops on the back wall, an upper walkway with more shops, escalator on the right, kiosk, a bench behind a planter (hides seated legs), plants and ceiling light panels.",
+ "shell": {
+  "kind": "room",
+  "x": [
+   -34,
+   34
+  ],
+  "z": [
+   -22,
+   30
+  ],
+  "height": 22
+ },
+ "palette": {
+  "base": "mall",
+  "wall": [
+   "plaster",
+   "#ebe4da"
+  ]
+ },
+ "props": [
+  {
+   "prop": "storefront",
+   "x": -24,
+   "z": -21,
+   "w": 15,
+   "text": "TOY TOWN",
+   "color": "accent",
+   "awning": true
+  },
+  {
+   "prop": "storefront",
+   "x": -7,
+   "z": -21,
+   "w": 15,
+   "text": "BOOKS",
+   "color": "accent2"
+  },
+  {
+   "prop": "storefront",
+   "x": 10,
+   "z": -21,
+   "w": 15,
+   "text": "SHOES",
+   "color": "#8a5a9a"
+  },
+  {
+   "prop": "balcony",
+   "x": 0,
+   "z": -19,
+   "len": 68,
+   "h": 12,
+   "d": 6
+  },
+  {
+   "prop": "storefront",
+   "x": -20,
+   "y": 12.4,
+   "z": -21,
+   "w": 16,
+   "h": 8.5,
+   "text": "GAMES",
+   "color": "#3d5a80"
+  },
+  {
+   "prop": "storefront",
+   "x": 2,
+   "y": 12.4,
+   "z": -21,
+   "w": 16,
+   "h": 8.5,
+   "text": "PIZZA",
+   "color": "#e9c46a",
+   "textColor": "#5a3520"
+  },
+  {
+   "prop": "storefront",
+   "x": 22,
+   "y": 12.4,
+   "z": -21,
+   "w": 16,
+   "h": 8.5,
+   "text": "MUSIC",
+   "color": "#2a9d8f"
+  },
+  {
+   "prop": "escalator",
+   "x": 19,
+   "z": -11,
+   "run": 16,
+   "rise": 12
+  },
+  {
+   "prop": "kiosk",
+   "x": 4,
+   "z": -2,
+   "text": "BUBBLE TEA"
+  },
+  {
+   "prop": "bench",
+   "x": -12,
+   "z": -6,
+   "len": 7,
+   "cover": "planter",
+   "color2": "metal",
+   "seats": [
+    "benchL",
+    "benchR"
+   ]
+  },
+  {
+   "prop": "plant",
+   "x": -31,
+   "z": -12,
+   "size": 1.5,
+   "tall": 1.3
+  },
+  {
+   "prop": "plant",
+   "x": 30,
+   "z": 6,
+   "size": 1.4
+  },
+  {
+   "prop": "plant",
+   "x": -3,
+   "z": -8,
+   "size": 1.1
+  },
+  {
+   "prop": "planter",
+   "x": -22,
+   "z": 6,
+   "len": 8
+  },
+  {
+   "prop": "column",
+   "x": -16,
+   "z": 12,
+   "h": 22
+  },
+  {
+   "prop": "column",
+   "x": 16,
+   "z": 12,
+   "h": 22
+  },
+  {
+   "prop": "trashCan",
+   "x": -5.5,
+   "z": -5
+  },
+  {
+   "prop": "sign",
+   "x": 0,
+   "y": 19.3,
+   "z": -21.7,
+   "w": 16,
+   "h": 2.6,
+   "text": "SUNNY MALL",
+   "color": "#1a1418",
+   "color2": "#ffd27a",
+   "glow": true
+  },
+  {
+   "prop": "ceilingLight",
+   "x": -22,
+   "z": -4,
+   "w": 8
+  },
+  {
+   "prop": "ceilingLight",
+   "x": 0,
+   "z": -4,
+   "w": 8
+  },
+  {
+   "prop": "ceilingLight",
+   "x": 22,
+   "z": -4,
+   "w": 8
+  },
+  {
+   "prop": "ceilingLight",
+   "x": -22,
+   "z": 14,
+   "w": 8
+  },
+  {
+   "prop": "ceilingLight",
+   "x": 0,
+   "z": 14,
+   "w": 8
+  },
+  {
+   "prop": "ceilingLight",
+   "x": 22,
+   "z": 14,
+   "w": 8
+  }
+ ],
+ "lamps": [
+  {
+   "x": -8,
+   "y": 9,
+   "z": -10,
+   "day": 2,
+   "night": 10,
+   "dist": 40
+  },
+  {
+   "x": 12,
+   "y": 9,
+   "z": -6,
+   "day": 2,
+   "night": 10,
+   "dist": 40
+  }
+ ],
+ "marks": {
+  "toys": [
+   -24,
+   -14,
+   0
+  ],
+  "books": [
+   -7,
+   -14,
+   0
+  ],
+  "shoes": [
+   10,
+   -14,
+   0
+  ],
+  "kiosk": [
+   4,
+   -4.4,
+   0
+  ],
+  "kioskFront": [
+   4,
+   2,
+   180
+  ],
+  "benchFront": [
+   -12,
+   1,
+   0
+  ],
+  "walk": [
+   0,
+   8,
+   0
+  ]
+ },
+ "cams": {
+  "wide": {
+   "from": [
+    20,
+    14,
+    34
+   ],
+   "to": [
+    -4,
+    6,
+    -12
+   ],
+   "fov": 52
+  },
+  "bench": {
+   "from": [
+    -12,
+    7.2,
+    11
+   ],
+   "to": [
+    -12,
+    4.2,
+    -5.8
+   ],
+   "end": [
+    -12,
+    7.0,
+    9
+   ],
+   "fov": 46
+  },
+  "benchL": {
+   "from": [
+    -10.4,
+    6.4,
+    8.2
+   ],
+   "to": [
+    -13.7,
+    4.6,
+    -5.8
+   ],
+   "end": [
+    -11,
+    6.2,
+    6.4
+   ],
+   "fov": 40
+  },
+  "benchR": {
+   "from": [
+    -13.6,
+    6.4,
+    8.2
+   ],
+   "to": [
+    -10.3,
+    4.6,
+    -5.8
+   ],
+   "end": [
+    -13,
+    6.2,
+    6.4
+   ],
+   "fov": 40
+  },
+  "shops": {
+   "from": [
+    -21,
+    7.5,
+    5
+   ],
+   "to": [
+    -24,
+    5.5,
+    -16
+   ],
+   "end": [
+    -21.5,
+    7.2,
+    3
+   ],
+   "fov": 48
+  },
+  "escalator": {
+   "from": [
+    4,
+    8,
+    14
+   ],
+   "to": [
+    19,
+    6,
+    -11
+   ],
+   "fov": 48
+  },
+  "kiosk": {
+   "from": [
+    2,
+    7.4,
+    12
+   ],
+   "to": [
+    4,
+    4.6,
+    -4.4
+   ],
+   "end": [
+    2.4,
+    7.2,
+    10
+   ],
+   "fov": 46
+  },
+  "upper": {
+   "from": [
+    0,
+    6,
+    10
+   ],
+   "to": [
+    -6,
+    13,
+    -20
+   ],
+   "end": [
+    0,
+    6.2,
+    8
+   ],
+   "fov": 50
+  }
+ }
+}

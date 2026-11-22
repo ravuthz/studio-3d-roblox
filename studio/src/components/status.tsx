@@ -75,11 +75,11 @@ export function JobBadge({ status }: { status: Job["status"] }) {
 
 export function LengthBadge({ voEnd }: { voEnd: number | null }) {
   if (voEnd == null) return null
-  const s = voEnd < 120 ? "short" : voEnd > 180 ? "long" : "ok"
+  const s = voEnd < 30 ? "short" : voEnd > 60 ? "long" : "ok"
   if (s === "ok") return null
   return (
-    <Badge variant="outline" className="border-warning/50 text-warning" title="The default length is 2–3 minutes">
-      {s === "short" ? "under 2 min" : "over 3 min"}
+    <Badge variant="outline" className="border-warning/50 text-warning" title="The default length is 30–60 seconds">
+      {s === "short" ? "under 30 s" : "over 1 min"}
     </Badge>
   )
 }

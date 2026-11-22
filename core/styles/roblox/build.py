@@ -9,6 +9,8 @@ Outputs:
   character.glb  one blocky rig (8 bones), body parts, hair/accessory variants for
                  Zero, Zeebra, Luna and Zip, and baked animation clips
   town.glb       a street set with houses, lamps, trees and a count-board tower
+  sets.glb       bedroom, forest, car, ship, the family house
+  dog.glb        a blocky four-legged dog with its own rig (7 bones) and clips
 
 Blender is Z-up and the character faces -Y; the glTF exporter converts to Y-up,
 so in Three.js the character faces +Z.
@@ -106,12 +108,13 @@ class Builder:
         bmesh.ops.translate(tb, vec=Vector(center), verts=r["verts"])
         self._merge(tb, m)
 
-    def quad(self, corners, m):
-        """corners: bl, br, tr, tl; gets a 0..1 UV."""
+    def quad(self, corners, m, uv=(0, 0, 1, 1)):
+        """corners: bl, br, tr, tl; gets the UV rectangle uv = (u0, v0, u1, v1), 0..1 by default."""
         vs = [self.bm.verts.new(c) for c in corners]
         f = self.bm.faces.new(vs)
         f.material_index = self._mi(m)
-        for loop, uv in zip(f.loops, [(0, 0), (1, 0), (1, 1), (0, 1)]):
+        u0, v0, u1, v1 = uv
+        for loop, uv in zip(f.loops, [(u0, v0), (u1, v0), (u1, v1), (u0, v1)]):
             loop[self.uv].uv = uv
 
     def finish(self, collection=None):
@@ -318,10 +321,82 @@ def build_character():
         b.box((1.25, 1.25, 1.15), (0, 0, 5.92), hair, 0.08, 3)
         b.box((1.3, 1.3, 0.24), (0, 0, 5.5), acc, 0.04, 2)
 
-    for name, fn in (("Hair_Zero", hair_zero), ("Hair_Zeebra", hair_zeebra),
-                     ("Hair_Luna", hair_luna), ("Hair_Zip", hair_zip),
-                     ("Hair_Zark", hair_zark), ("Hair_Mayor", hair_mayor)):
-        part(name, "Head", fn)
+    def hair_bo(b):  # thick side-parted dad hair with swept front wave and silver temple streaks
+        b.box((1.44, 1.44, 0.44), (0, 0.04, 5.12), hair, 0.15, 3)
+        b.box((1.44, 0.44, 0.88), (0, 0.54, 4.74), hair, 0.14, 3)
+        b.box((1.02, 1.36, 0.34), (0.20, -0.06, 5.38), hair, 0.13, 3, rot_y=-0.12)
+        b.box((0.46, 1.32, 0.22), (-0.48, -0.02, 5.30), hair, 0.09, 2, rot_y=0.14)
+        b.box((0.88, 0.30, 0.24), (0.18, -0.64, 5.08), hair, 0.09, 2, rot_y=-0.18)
+        for sx in (-1, 1):
+            b.box((0.20, 0.62, 0.62), (sx * 0.67, 0.16, 4.82), hair, 0.07, 2)
+            b.box((0.22, 0.30, 0.26), (sx * 0.68, -0.18, 4.72), hair2, 0.06, 2)
+            b.box((0.18, 0.24, 0.34), (sx * 0.67, -0.20, 4.46), hair, 0.05, 2)
+
+    def hair_mira(b):  # warm high top-bun with scrunchie, side-swept bangs and caramel highlight
+        b.box((1.44, 1.44, 0.46), (0, 0.04, 5.10), hair, 0.16, 3)
+        b.box((1.42, 0.44, 0.96), (0, 0.54, 4.72), hair, 0.14, 3)
+        for sx in (-1, 1):
+            b.box((0.22, 0.72, 0.78), (sx * 0.67, 0.12, 4.76), hair, 0.08, 2)
+            b.box((0.18, 0.24, 0.68), (sx * 0.64, -0.40, 4.62), hair, 0.06, 2)
+        b.box((0.92, 0.28, 0.24), (-0.22, -0.63, 5.04), hair, 0.09, 2, rot_y=0.14)
+        b.box((0.52, 0.26, 0.20), (0.46, -0.62, 5.07), hair, 0.08, 2, rot_y=-0.16)
+        b.box((0.36, 0.28, 0.16), (-0.18, -0.65, 5.14), hair2, 0.06, 2, rot_y=0.14)
+        b.box((0.78, 0.78, 0.18), (0, 0.20, 5.38), acc, 0.08, 3)
+        b.blob(0.46, (0, 0.22, 5.72), hair, (1.08, 1.0, 0.88), sub=3)
+        b.blob(0.24, (0.18, 0.04, 5.84), hair2, (1.1, 0.9, 0.7), sub=2)
+
+    def hair_pip(b):  # playful fluffy curly mop-top with bouncy highlight puffs
+        b.box((1.40, 1.40, 0.42), (0, 0.04, 5.06), hair, 0.16, 3)
+        b.box((1.42, 0.48, 0.86), (0, 0.52, 4.70), hair, 0.15, 3)
+        for cx, cy, cz, r, m in (
+            (-0.46, -0.32, 5.26, 0.34, hair), (0.0, -0.44, 5.30, 0.36, hair), (0.46, -0.32, 5.24, 0.33, hair2),
+            (-0.34, 0.14, 5.44, 0.38, hair), (0.26, 0.12, 5.46, 0.40, hair), (-0.04, -0.14, 5.52, 0.36, hair2),
+            (-0.48, 0.42, 5.20, 0.34, hair), (0.02, 0.48, 5.26, 0.36, hair), (0.48, 0.40, 5.20, 0.34, hair),
+        ):
+            b.blob(r, (cx, cy, cz), m, (1.05, 1.0, 0.92), sub=2)
+        for sx in (-1, 1):
+            b.blob(0.28, (sx * 0.66, -0.12, 4.92), hair, (0.85, 1.05, 1.05), sub=2)
+            b.blob(0.26, (sx * 0.66, 0.28, 4.78), hair, (0.85, 1.05, 1.05), sub=2)
+        b.blob(0.22, (-0.36, -0.60, 5.05), hair, (1.15, 0.85, 0.85), sub=2)
+        b.blob(0.23, (0.04, -0.62, 5.07), hair2, (1.15, 0.85, 0.85), sub=2)
+        b.blob(0.21, (0.40, -0.58, 5.03), hair, (1.1, 0.85, 0.85), sub=2)
+
+    def hair_kai(b):  # modern middle-parted curtain bangs with layered crown and cool side streak
+        b.box((1.48, 1.48, 0.46), (0, 0.04, 5.14), hair, 0.17, 3)
+        b.box((1.44, 0.48, 1.04), (0, 0.54, 4.68), hair, 0.15, 3)
+        b.box((0.72, 1.38, 0.28), (-0.36, -0.02, 5.36), hair, 0.12, 3, rot_y=0.14)
+        b.box((0.72, 1.38, 0.28), (0.36, -0.02, 5.36), hair, 0.12, 3, rot_y=-0.14)
+        b.box((0.60, 0.28, 0.30), (-0.42, -0.60, 5.02), hair, 0.10, 2, rot_y=0.28, rot_z=-0.10)
+        b.box((0.60, 0.28, 0.30), (0.42, -0.60, 5.02), hair, 0.10, 2, rot_y=-0.28, rot_z=0.10)
+        b.box((0.22, 0.26, 0.30), (0.56, -0.58, 5.00), hair2, 0.08, 2, rot_y=-0.28, rot_z=0.10)
+        b.box((0.24, 1.24, 0.24), (0.48, -0.04, 5.38), hair2, 0.09, 2, rot_y=-0.14)
+        for sx in (-1, 1):
+            b.box((0.24, 0.78, 0.94), (sx * 0.69, 0.02, 4.66), hair, 0.09, 2)
+
+    def hair_nova(b):  # flared chin-length bob with dipped tips and twin half-up space-buns
+        b.box((1.48, 1.48, 0.46), (0, 0.04, 5.12), hair, 0.16, 3)
+        b.box((1.50, 0.46, 1.15), (0, 0.56, 4.62), hair, 0.15, 3)
+        b.box((1.66, 0.56, 0.34), (0, 0.60, 4.10), hair2, 0.13, 3)
+        for sx in (-1, 1):
+            b.box((0.28, 0.86, 1.02), (sx * 0.72, -0.04, 4.62), hair, 0.10, 3)
+            b.box((0.36, 0.76, 0.34), (sx * 0.80, -0.06, 4.12), hair2, 0.12, 3, rot_y=-sx * 0.26)
+        b.box((0.62, 0.26, 0.24), (-0.34, -0.62, 5.04), hair, 0.08, 2, rot_y=0.12)
+        b.box((0.62, 0.26, 0.24), (0.34, -0.62, 5.04), hair, 0.08, 2, rot_y=-0.12)
+        for sx in (-1, 1):
+            b.box((0.46, 0.46, 0.15), (sx * 0.46, 0.04, 5.38), acc, 0.06, 2, rot_y=-sx * 0.20)
+            b.blob(0.35, (sx * 0.50, 0.04, 5.65), hair, (1.0, 0.96, 0.92), sub=3)
+
+    # HAIR STYLES: name -> builder. To add one, write hair_<name>(b) above (boxes and blobs on the
+    # head; the head box spans x/y -0.65..0.65 and z 4.03..5.23, front is -y; use the materials
+    # hair, hair2 (HairStreak) and acc), add it here, run `npm run film assets`, then set
+    # hair: "<Name>" on a cast entry in core/engine/stage.js.
+    HAIR_STYLES = {
+        "Zero": hair_zero, "Zeebra": hair_zeebra, "Luna": hair_luna, "Zip": hair_zip,
+        "Zark": hair_zark, "Mayor": hair_mayor,
+        "Bo": hair_bo, "Mira": hair_mira, "Pip": hair_pip, "Kai": hair_kai, "Nova": hair_nova,
+    }
+    for name, fn in HAIR_STYLES.items():
+        part("Hair_" + name, "Head", fn)
 
     bake_clips(rig)
     export(os.path.join(OUT, "character.glb"), True)
@@ -437,8 +512,12 @@ def bake_clips(rig, loc_scale=1.0, adjust=None, clips=None):
              ("Idle", idle, 60), ("Walk", walk, 30), ("Run", run, 20), ("Talk", talk, 60),
              ("Wave", wave, 60), ("Shock", shock, 45), ("Cheer", cheer, 30), ("Sad", sad, 90),
              ("Point", point, 60), ("LookUp", lookup, 60)]
-    clips = clips or default
+    bake_actions(rig, clips or default, loc_scale, adjust)
 
+
+def bake_actions(rig, clips, loc_scale=1.0, adjust=None):
+    """Keys every (name, pose_fn, frames) clip on the rig and stacks them as NLA tracks.
+    loc_scale and adjust: see bake_clips."""
     bpy.context.view_layer.objects.active = rig
     bpy.ops.object.mode_set(mode="POSE")
     for pb in rig.pose.bones:
@@ -471,6 +550,165 @@ def bake_clips(rig, loc_scale=1.0, adjust=None, clips=None):
         pb.location = (0, 0, 0)
         pb.rotation_euler = (0, 0, 0)
     bpy.ops.object.mode_set(mode="OBJECT")
+
+
+# --------------------------------------------------------------------- dog
+DOG_BONES = {  # name: (head, parent); the dog faces -Y like the character
+    "Root": ((0, 0, 0), None),
+    "Body": ((0, 0, 1.55), "Root"),
+    "Head": ((0, -1.15, 2.0), "Body"),
+    "Tail": ((0, 1.3, 1.9), "Body"),
+    "LegFL": ((0.42, -0.85, 1.15), "Body"),
+    "LegFR": ((-0.42, -0.85, 1.15), "Body"),
+    "LegBL": ((0.42, 0.85, 1.15), "Body"),
+    "LegBR": ((-0.42, 0.85, 1.15), "Body"),
+}
+
+
+def build_dog():
+    """A blocky dog, about 2.9 studs tall at the head. Materials Fur, Patch, Paw, Nose, Collar,
+    Tag are coloured per dog in stage.js (DOGS); Face is the drawn face (eyes on the head,
+    mouth on the snout, one texture). Ear styles are M_Ears_<Style> objects, picked by "ears"."""
+    reset()
+    arm_data = bpy.data.armatures.new("DogRig")
+    rig = bpy.data.objects.new("DogRig", arm_data)
+    bpy.context.scene.collection.objects.link(rig)
+    bpy.context.view_layer.objects.active = rig
+    bpy.ops.object.mode_set(mode="EDIT")
+    for name, (head, parent) in DOG_BONES.items():
+        b = arm_data.edit_bones.new(name)
+        b.head = head
+        b.tail = (head[0], head[1], head[2] + 0.4)
+        b.align_roll(Vector((0, -1, 0)))
+        if parent:
+            b.parent = arm_data.edit_bones[parent]
+    bpy.ops.object.mode_set(mode="OBJECT")
+
+    fur, patch, paw = mat("Fur", "#d9a066"), mat("Patch", "#8a5a32"), mat("Paw", "#f3e2c7")
+    nose, collar, tag = mat("Nose", "#2a1e1a", 0.4), mat("Collar", "#d8463f", 0.6), mat("Tag", "#ffd23c", 0.3)
+    face = mat("Face", "#ffffff")
+
+    def part(name, bone, fn):
+        b = Builder("D_" + name)
+        fn(b)
+        ob = b.finish()
+        vg = ob.vertex_groups.new(name=bone)
+        vg.add(range(len(ob.data.vertices)), 1.0, "REPLACE")
+        ob.parent = rig
+        ob.modifiers.new("Armature", "ARMATURE").object = rig
+        return ob
+
+    def body(b):
+        b.box((1.36, 2.55, 1.16), (0, 0, 1.55), fur, 0.20, 3)
+        b.box((1.16, 1.65, 0.14), (0, 0.08, 0.99), paw, 0.05, 2)        # light belly
+        b.box((1.16, 0.42, 0.88), (0, -1.16, 1.48), paw, 0.12, 3)       # fluffy cream chest
+        b.box((1.39, 1.16, 0.16), (0, 0.14, 2.06), patch, 0.07, 2)      # back saddle patch
+    part("Body", "Body", body)
+
+    def head(b):
+        b.box((1.18, 1.04, 1.04), (0, -1.55, 2.32), fur, 0.18, 3)
+        b.box((0.36, 0.26, 0.14), (0, -1.52, 2.84), fur, 0.06, 2, rot_x=0.14)  # soft head tuft
+        b.box((0.70, 0.54, 0.48), (0, -2.30, 2.04), paw, 0.11, 3)       # snout
+        b.box((0.32, 0.18, 0.20), (0, -2.58, 2.22), nose, 0.07, 2)      # nose
+        b.box((1.26, 0.44, 0.22), (0, -1.14, 1.84), collar, 0.07, 2, rot_x=-0.28)
+        b.blob(0.15, (0, -1.42, 1.62), tag, (1.05, 0.42, 1.05))
+    part("Head", "Head", head)
+    # face texture: top 60 % = eyes (head front), bottom 40 % = mouth (snout front)
+    part("Face", "Head", lambda b: (
+        b.quad([(-0.56, -2.082, 2.24), (0.56, -2.082, 2.24), (0.56, -2.082, 2.80), (-0.56, -2.082, 2.80)],
+               face, (0, 0.4, 1, 1)),
+        b.quad([(-0.32, -2.582, 1.82), (0.32, -2.582, 1.82), (0.32, -2.582, 2.10), (-0.32, -2.582, 2.10)],
+               face, (0.25, 0, 0.75, 0.4))))
+
+    def ears_floppy(b):
+        for sx in (-1, 1):
+            b.box((0.24, 0.54, 0.24), (sx * 0.62, -1.52, 2.74), patch, 0.08, 2, rot_y=-sx * 0.28)
+            b.box((0.20, 0.56, 0.80), (sx * 0.68, -1.52, 2.38), patch, 0.08, 2, rot_y=sx * 0.20)
+
+    def ears_pointy(b):
+        for sx in (-1, 1):
+            b.box((0.36, 0.18, 0.5), (sx * 0.36, -1.45, 2.95), patch, 0.06, 2, rot_y=-sx * 0.2)
+    # EAR STYLES: name -> builder, picked by "ears" on a dog in stage.js (DOGS)
+    for name, fn in {"Floppy": ears_floppy, "Pointy": ears_pointy}.items():
+        part("Ears_" + name, "Head", fn)
+
+    def tail(b):
+        b.box((0.28, 0.28, 0.92), (0, 1.48, 2.25), fur, 0.09, 2, rot_x=-0.48)
+        b.blob(0.24, (0, 1.74, 2.68), patch, (0.95, 1.0, 1.15), sub=2)
+    part("Tail", "Tail", tail)
+
+    for side, x, y in (("FL", 0.42, -0.85), ("FR", -0.42, -0.85), ("BL", 0.42, 0.85), ("BR", -0.42, 0.85)):
+        def leg(b, x=x, y=y):
+            b.box((0.44, 0.44, 1.0), (x, y, 0.65), fur, 0.08, 2)
+            b.box((0.5, 0.56, 0.24), (x, y - 0.05, 0.12), paw, 0.08, 2)
+        part("Leg" + side, "Leg" + side, leg)
+
+    bake_dog_clips(rig)
+    export(os.path.join(OUT, "dog.glb"), True)
+
+
+def bake_dog_clips(rig):
+    """Dog clips, same pose-function format as bake_clips. Rotation X on a leg swings its foot
+    backwards (negative = forwards); on Body, positive tips the nose down."""
+    S, C, PI2 = math.sin, math.cos, math.tau
+
+    def idle(u):
+        s = S(PI2 * u)
+        return {"Body": {"loc": (0, 0.025 * s, 0)}, "Head": (0.04 * S(PI2 * u + 1), 0.12 * S(PI2 * u), 0.05 * s),
+                "Tail": (0, 0.35 * S(PI2 * 4 * u), 0)}
+
+    def walk(u):
+        s = S(PI2 * u)
+        return {"Body": {"loc": (0, 0.05 * abs(C(PI2 * u)), 0), "rot": (0, 0.04 * s, 0)},
+                "Head": (0.04 * S(PI2 * 2 * u), -0.05 * s, 0), "Tail": (0, 0.3 * S(PI2 * 2 * u), 0),
+                "LegFL": (0.5 * s, 0, 0), "LegBR": (0.5 * s, 0, 0),
+                "LegFR": (-0.5 * s, 0, 0), "LegBL": (-0.5 * s, 0, 0)}
+
+    def run(u):  # gallop: front pair, then back pair
+        s, c = S(PI2 * u), C(PI2 * u)
+        return {"Body": {"loc": (0, 0.25 * max(0, s), 0), "rot": (0.14 * c, 0, 0)},
+                "Head": (-0.12 * c, 0, 0), "Tail": (-0.4, 0.2 * s, 0),
+                "LegFL": (0.9 * s, 0, 0), "LegFR": (0.9 * S(PI2 * u - 0.4), 0, 0),
+                "LegBL": (-0.9 * s, 0, 0), "LegBR": (-0.9 * S(PI2 * u - 0.4), 0, 0)}
+
+    def sit_pose(s, lean=0.55):
+        return {"Body": {"loc": (0, -0.42, -0.1), "rot": (-lean, 0, 0)},
+                "LegFL": (lean, 0, 0), "LegFR": (lean, 0, 0),
+                "LegBL": (lean - 1.55, 0, 0.05), "LegBR": (lean - 1.55, 0, -0.05),
+                "Head": (lean * 0.8 + 0.03 * s, 0, 0)}
+
+    def sit(u):
+        s = S(PI2 * u)
+        p = sit_pose(s)
+        p["Tail"] = (-0.5, 0.3 * S(PI2 * 3 * u), 0)
+        return p
+
+    def bark(u):  # two barks per loop: head snaps up, body pushes forward, tail wags fast
+        k = abs(S(PI2 * 2 * u)) ** 3
+        return {"Body": {"loc": (0, 0.06 * k, -0.08 * k), "rot": (-0.08 * k, 0, 0)},
+                "Head": (-0.3 * k, 0, 0), "Tail": (-0.2, 0.45 * S(PI2 * 6 * u), 0),
+                "LegFL": (-0.12 * k, 0, 0), "LegFR": (-0.12 * k, 0, 0)}
+
+    def beg(u):  # sitting up on the back legs, front paws up and paddling
+        s = S(PI2 * u)
+        p = sit_pose(s, 1.05)
+        p["Body"]["loc"] = (0, -0.25 + 0.04 * s, 0.1)
+        p["LegFL"] = (0.1 + 0.25 * S(PI2 * 2 * u), 0, 0)
+        p["LegFR"] = (0.1 + 0.25 * S(PI2 * 2 * u + 1.2), 0, 0)
+        p["Head"] = (0.85 + 0.06 * s, 0, 0.12 * s)
+        p["Tail"] = (0, 0.3 * S(PI2 * 4 * u), 0)
+        return p
+
+    def sleep(u):  # lying down, legs tucked, head on the paws, slow breathing
+        s = S(PI2 * u)
+        return {"Body": {"loc": (0, -1.0 + 0.03 * s, 0)},
+                "LegFL": (-1.5, 0, 0.1), "LegFR": (-1.5, 0, -0.1),
+                "LegBL": (1.5, 0, 0.1), "LegBR": (1.5, 0, -0.1),
+                "Head": (0.35, 0.25, 0.1), "Tail": (-0.9, 0.6, 0)}
+
+    clips = [("Idle", idle, 60), ("Walk", walk, 30), ("Run", run, 16), ("Sit", sit, 60),
+             ("Bark", bark, 30), ("Beg", beg, 60), ("Sleep", sleep, 120)]
+    bake_actions(rig, clips)
 
 
 # -------------------------------------------------------------------- town
@@ -703,6 +941,7 @@ def build_sets():
 
 if __name__ == "__main__":
     build_character()
+    build_dog()
     build_town()
     build_sets()
     print("DONE")

@@ -18,9 +18,11 @@
     box.appendChild(el);
     const next = T.words[i + 1];
     const off = next ? Math.min(next.s, w.e + 0.45) : w.e + 0.5;
+    const hideAt = Math.max(off, w.s + 0.08);
+    const popDur = Math.min(0.12, Math.max(0.05, (hideAt - w.s) * 0.7));
     tl.set(el, { opacity: 1 }, w.s);
-    tl.fromTo(el, { scale: 0.35 }, { scale: 1, duration: 0.13, ease: "back.out(2.6)" }, w.s);
-    tl.set(el, { opacity: 0 }, Math.max(off, w.s + 0.08));
+    tl.fromTo(el, { scale: 0.35 }, { scale: 1, duration: popDur, ease: "back.out(2.4)" }, w.s);
+    tl.set(el, { opacity: 0 }, hideAt);
   });
   (P.flashes || []).forEach((t) => {
     tl.set("#flash", { opacity: 0.7 }, t);

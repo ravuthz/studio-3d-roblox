@@ -20,6 +20,15 @@ function drawFace(g, expr, o = {}) {
     g.strokeStyle = c; g.lineWidth = w; g.beginPath(); g.moveTo(x0, y0); g.quadraticCurveTo(cx, cy, x1, y1); g.stroke();
   };
 
+  if (o.shade) { // living shadow: two glowing eyes on a dark body (o.shade = eye colour or true), nothing else
+    const h = expr === "shock" ? 40 : expr === "sleep" ? 4 : expr === "angry" || expr === "smug" ? 14 : expr === "sad" ? 18 : 28;
+    const tilt = expr === "angry" ? 0.45 : expr === "sad" ? -0.35 : 0;
+    g.fillStyle = typeof o.shade === "string" ? o.shade : "#f2f0ff";
+    for (const s of [-1, 1]) { g.beginPath(); g.ellipse(128 + s * EYE_X, EYE_Y, 26, h, -s * tilt, 0, Math.PI * 2); g.fill(); }
+    if (expr === "shock") { g.beginPath(); g.ellipse(128, NOSE_Y + 44, 11, 15, 0, 0, Math.PI * 2); g.fill(); }
+    else if (expr === "happy") { g.beginPath(); g.arc(128, NOSE_Y + 30, 22, 0, Math.PI); g.closePath(); g.fill(); }
+    return;
+  }
   // soft cheeks: every toy face has a little warmth, "blush" makes it stronger
   for (const s of [-1, 1]) {
     const x = 128 + s * 84, y = 176;
@@ -142,6 +151,7 @@ export { drawFace };
 export default {
   id: "pixar-disney",
   assets: "core/styles/pixar-disney/assets",
+  dog: "core/styles/roblox/assets/dog.glb",   // no dog of its own yet: the roblox one
   size: 1.19,           // puts a face at the height of a roblox character's, so the same shots frame both
   headY: 6.1,           // top of the head, for the number badge
   drawFace,

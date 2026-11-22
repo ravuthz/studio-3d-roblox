@@ -1,4 +1,4 @@
-import { Bot, Cpu, FileCode2 } from "lucide-react"
+import { Bot, Cpu, FileCode2, Loader2, Rocket, Shuffle, Sparkles } from "lucide-react"
 import { useEffect, useState, type ReactNode } from "react"
 import { toast } from "sonner"
 
@@ -17,23 +17,35 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
-import { api, stylePreview, type Agent, type Style } from "@/lib/api"
+import { api, stylePreview, type Agent, type SeriesInfo, type Style } from "@/lib/api"
 import { cn } from "@/lib/utils"
 import { go } from "@/lib/route"
 
 const TEMPLATE = "template"
 const CLI_DEFAULT = "cli-default"
 
-export function NewFilmDialog({ children, onCreated }: { children: ReactNode; onCreated: () => void }) {
+export function NewFilmDialog({
+  children,
+  onCreated,
+  defaultSeries,
+}: {
+  children: ReactNode
+  onCreated: () => void
+  defaultSeries?: string
+}) {
   const [open, setOpen] = useState(false)
   const [name, setName] = useState("")
   const [title, setTitle] = useState("")
+  const [seriesList, setSeriesList] = useState<SeriesInfo[]>([])
+  const [series, setSeries] = useState<string>("family")
   const [lang, setLang] = useState<"en" | "km">("en")
   const [styles, setStyles] = useState<Style[]>([])
   const [style, setStyle] = useState<string>("")
   const [agent, setAgentState] = useState<string>(TEMPLATE)
   const [model, setModel] = useState<string>(CLI_DEFAULT)
   const [idea, setIdea] = useState("")
+  const [seen, setSeen] = useState<string[]>([])
+  const [generating, setGenerating] = useState<"instant" | "ai" | null>(null)
   const [agents, setAgents] = useState<Agent[] | null>(null)
   const [busy, setBusy] = useState(false)
   const useAgent = agent !== TEMPLATE
@@ -46,9 +58,10 @@ export function NewFilmDialog({ children, onCreated }: { children: ReactNode; on
     setModel(CLI_DEFAULT)
   }
 
-  // the allowed agents come from STUDIO_AGENTS on the server; refresh each time the dialog opens
+  // the allowed agents and series come from the server; refresh each time the dialog opens
   useEffect(() => {
     if (!open) return
+    if (defaultSeries) setSeries(defaultSeries)
     api
       .agents()
       .then((list) => {
@@ -65,16 +78,69 @@ export function NewFilmDialog({ children, onCreated }: { children: ReactNode; on
         setStyle((cur) => (list.some((x) => x.id === cur) ? cur : (list.find((x) => x.default) ?? list[0])?.id ?? ""))
       })
       .catch(() => setStyles([]))
-  }, [open])
+    api
+      .series()
+      .then((list) => {
+        setSeriesList(list)
+        setSeries((cur) => (list.some((s) => s.id === cur) ? cur : (list[0]?.id ?? "family")))
+      })
+      .catch(() => {})
+  }, [open, defaultSeries])
+
+  async function fillTopic(withAgent: boolean) {
+    setGenerating(withAgent ? "ai" : "instant")
+    try {
+      const avoid = [...seen, name, title.trim()].filter(Boolean)
+      const topic = await api.topic({
+        agent: withAgent ? agent : null,
+        model: withAgent && model !== CLI_DEFAULT ? model : null,
+        avoid,
+        series,
+      })
+      setName(topic.name)
+      setTitle(topic.title)
+      setIdea(topic.idea)
+      setLang("en")
+      setSeen((prev) => [...prev.slice(-40), topic.name, topic.title])
+    } catch (err) {
+      toast.error((err as Error).message)
+    } finally {
+      setGenerating(null)
+    }
+  }
+
+  // topic -> film -> story and shots -> build -> MP4, with no further confirmation
+  async function autopilot() {
+    setBusy(true)
+    try {
+      const state = await api.startAuto({
+        agent: useAgent ? agent : null,
+        model: useAgent && model !== CLI_DEFAULT ? model : null,
+        lang,
+        series,
+        style,
+        count: 1,
+      })
+      toast.success("Autopilot started", {
+        description: `${state.agent} picks the next topic, writes it, then narrate → plan → audio → check → render. Follow it in the sidebar.`,
+      })
+      setOpen(false)
+    } catch (err) {
+      toast.error((err as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
-    if (!valid) return
+    if (!valid || generating) return
     setBusy(true)
     try {
       const { film, job } = await api.create({
         name,
         title: title.trim(),
+        series,
         lang,
         style,
         agent: useAgent ? agent : null,
@@ -88,6 +154,7 @@ export function NewFilmDialog({ children, onCreated }: { children: ReactNode; on
       setName("")
       setTitle("")
       setIdea("")
+      setSeen([])
       go(job ? `#/film/${film.name}/runs` : `#/film/${film.name}`)
     } catch (err) {
       toast.error((err as Error).message)
@@ -102,7 +169,35 @@ export function NewFilmDialog({ children, onCreated }: { children: ReactNode; on
       <DialogContent className="sm:max-w-lg">
         <form onSubmit={submit} className="grid gap-4">
           <DialogHeader>
-            <DialogTitle>New film</DialogTitle>
+            <div className="flex flex-wrap items-center justify-between gap-2 pr-8">
+              <DialogTitle>New film</DialogTitle>
+              <div className="flex items-center gap-1.5">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="xs"
+                  onClick={() => fillTopic(false)}
+                  disabled={busy || generating !== null}
+                  title="Generate a fresh English title, folder name, and story idea"
+                >
+                  {generating === "instant" ? <Loader2 className="animate-spin" /> : <Shuffle />}
+                  Auto topic
+                </Button>
+                {useAgent && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="xs"
+                    onClick={() => fillTopic(true)}
+                    disabled={busy || generating !== null}
+                    title={`Ask ${agent} to invent a brand-new topic`}
+                  >
+                    {generating === "ai" ? <Loader2 className="animate-spin" /> : <Sparkles />}
+                    {generating === "ai" ? `Asking ${agent}…` : `Ask ${agent}`}
+                  </Button>
+                )}
+              </div>
+            </div>
             <DialogDescription>
               Scaffolds <code className="font-mono">outputs/{name || (useAgent ? "<auto>" : "<name>")}/</code> from the core template, the same
               as <code className="font-mono">npm run film new</code>. An AI agent can then write the story and shots.
@@ -134,20 +229,27 @@ export function NewFilmDialog({ children, onCreated }: { children: ReactNode; on
               </div>
             </div>
           )}
-          <div className="grid gap-4 sm:grid-cols-[1fr_9rem]">
+          <div className="grid gap-4 sm:grid-cols-2">
             <div className="grid gap-2">
-              <Label htmlFor="film-name">
-                Folder name {useAgent && <Optional />}
-              </Label>
-              <Input
-                id="film-name"
-                placeholder={useAgent ? "from the title or idea" : "lost-shadow"}
-                value={name}
-                onChange={(e) => setName(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "-"))}
-                aria-invalid={name.length > 0 && !valid}
-                autoFocus
-                className="font-mono"
-              />
+              <Label htmlFor="film-series">Series</Label>
+              <Select value={series} onValueChange={setSeries}>
+                <SelectTrigger id="film-series" className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {(seriesList.length
+                    ? seriesList
+                    : [
+                        { id: "family", label: "Family" },
+                        { id: "lover", label: "Lover" },
+                      ]
+                  ).map((s) => (
+                    <SelectItem key={s.id} value={s.id}>
+                      {s.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="grid gap-2">
               <Label htmlFor="film-lang">Narration</Label>
@@ -163,12 +265,26 @@ export function NewFilmDialog({ children, onCreated }: { children: ReactNode; on
             </div>
           </div>
           <div className="grid gap-2">
+            <Label htmlFor="film-name">
+              Folder name {useAgent && <Optional />}
+            </Label>
+            <Input
+              id="film-name"
+              placeholder={useAgent ? "from the title or idea" : "biscuit-bath-day"}
+              value={name}
+              onChange={(e) => setName(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "-"))}
+              aria-invalid={name.length > 0 && !valid}
+              autoFocus
+              className="font-mono"
+            />
+          </div>
+          <div className="grid gap-2">
             <Label htmlFor="film-title">
               Title {useAgent ? <Optional /> : null}
             </Label>
             <Input
               id="film-title"
-              placeholder={useAgent ? `${agent} picks one if left empty` : "In this town, nobody has a shadow"}
+              placeholder={useAgent ? `${agent} picks one if left empty` : "Dad made a chore wheel"}
               value={title}
               onChange={(e) => setTitle(e.target.value)}
             />
@@ -227,30 +343,49 @@ export function NewFilmDialog({ children, onCreated }: { children: ReactNode; on
               </div>
             )}
           </div>
-          {useAgent && (
-            <div className="grid gap-2">
-              <Label htmlFor="film-idea">Story idea</Label>
-              <Textarea
-                id="film-idea"
-                rows={4}
-                maxLength={4000}
-                placeholder="Optional. e.g. Shadows can walk away from their owners, and Zero's shadow leaves to become famous."
-                value={idea}
-                onChange={(e) => setIdea(e.target.value)}
-              />
-              <p className="text-xs text-muted-foreground">
-                The agent edits only <code className="font-mono">outputs/{name || "<auto>"}/</code>: story.json and
-                film.js. It does not narrate or render; run those from Pipeline once you have checked the script.
-              </p>
-            </div>
-          )}
+          <div className="grid gap-2">
+            <Label htmlFor="film-idea">
+              Story idea <Optional />
+            </Label>
+            <Textarea
+              id="film-idea"
+              rows={4}
+              maxLength={4000}
+              placeholder="e.g. Mira announces bath day and Biscuit immediately vanishes."
+              value={idea}
+              onChange={(e) => setIdea(e.target.value)}
+            />
+            <p className="text-xs text-muted-foreground">
+              {useAgent ? (
+                <>
+                  The agent edits only <code className="font-mono">outputs/{name || "<auto>"}/</code>: story.json and
+                  film.js. It does not narrate or render; run those from Pipeline once you have checked the script.
+                </>
+              ) : (
+                <>
+                  Saved in <code className="font-mono">outputs/{name || "<name>"}/meta.json</code> as your outline, or
+                  pick an AI agent above to write <code className="font-mono">story.json</code> and{" "}
+                  <code className="font-mono">film.js</code> from it.
+                </>
+              )}
+            </p>
+          </div>
           <DialogFooter>
             <DialogClose asChild>
               <Button type="button" variant="outline">
                 Cancel
               </Button>
             </DialogClose>
-            <Button type="submit" disabled={!valid || busy}>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={autopilot}
+              disabled={busy || generating !== null || agents?.every((a) => !a.installed)}
+              title="Pick the next topic and make the finished video without asking again"
+            >
+              <Rocket /> Autopilot to video
+            </Button>
+            <Button type="submit" disabled={!valid || busy || generating !== null}>
               {busy ? "Creating…" : useAgent ? `Create and write with ${agent}` : "Create film"}
             </Button>
           </DialogFooter>

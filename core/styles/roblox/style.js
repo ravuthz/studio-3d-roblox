@@ -23,6 +23,16 @@ function drawFace(g, expr, o) {
     g.fillStyle = "rgba(255,120,130,0.33)";
     for (const x of [58, 198]) { g.beginPath(); g.ellipse(x, 166, 20, 12, 0, 0, Math.PI * 2); g.fill(); }
   }
+  if (o.shade) { // living shadow: two glowing eyes on a dark body (o.shade = eye colour or true), no brows
+    const col = typeof o.shade === "string" ? o.shade : "#f2f0ff";
+    const h = expr === "shock" ? 24 : expr === "sleep" ? 3 : expr === "angry" || expr === "smug" ? 9 : expr === "sad" ? 11 : 15;
+    const tilt = expr === "angry" ? 0.45 : expr === "sad" ? -0.35 : 0;
+    g.fillStyle = col;
+    for (const [x, s] of [[lx, 1], [rx, -1]]) { g.beginPath(); g.ellipse(x, ey, 15, h, s * tilt, 0, Math.PI * 2); g.fill(); }
+    if (expr === "shock") { g.beginPath(); g.ellipse(128, 198, 11, 15, 0, 0, Math.PI * 2); g.fill(); }
+    else if (expr === "happy") { g.beginPath(); g.arc(128, 180, 22, 0, Math.PI); g.closePath(); g.fill(); }
+    return;
+  }
   if (o.alien) { // big slanted black eyes, no brows
     const k = expr === "shock" ? 1.18 : expr === "sad" ? 0.92 : expr === "angry" ? 0.8 : 1;
     const tilt = expr === "sad" ? -0.15 : expr === "angry" ? 0.75 : 0.42;
@@ -90,6 +100,7 @@ export { drawFace };
 export default {
   id: "roblox",
   assets: "core/styles/roblox/assets",
+  dog: "core/styles/roblox/assets/dog.glb",
   size: 1,              // model scale
   headY: 5.3,           // top of the head, for the number badge
   drawFace,
